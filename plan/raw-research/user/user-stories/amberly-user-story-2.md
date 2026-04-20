@@ -1,8 +1,15 @@
-# Persona
+# User
 
-Persona: Jason White
-Age: 16
-Occupation: High School Student
-Tech Environment: iPhone16
-Goal: Jason wants a game to play while he is in class, something low maintenance and easy to play without taking his full attention. Something fast and simple that can quickly report back wins and losses. 
-Frustrations: Jason does not want to put his full attention on the game, but something for fun on the side. He is not of legal age to gamble so he has resorted to stealing an ID to cash out. 
+Name: Lisa
+
+Age: 29
+About:  
+Lisa works a full-time job and uses mobile games to unwind in the evenings. She’s not trying to make money, she sees online slots more like playing a casual game on her phone. She enjoys bright visuals, themes, and small moments of excitement during short breaks.
+
+Wants:
+
+-   Fun, engaging themes
+-   Short, relaxing play sessions
+-   Low-pressure gameplay (no urgency to bet big)
+-   Frequent small rewards or bonuses
+-   Smooth mobile experience
