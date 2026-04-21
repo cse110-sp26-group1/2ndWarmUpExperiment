@@ -1,0 +1,470 @@
+"use strict";
+
+/**
+ * Core slot game configuration. Payouts are bet multipliers.
+ * @typedef {Object} SymbolDefinition
+ * @property {string} id
+ * @property {string} label
+ * @property {string} className
+ * @property {number} weight
+ * @property {{3: number, 4: number, 5: number}} payouts
+ */
+
+const MIN_BET = 10;
+const MAX_BET = 100;
+const BET_STEP = 10;
+const DEFAULT_BALANCE = 1000;
+const REEL_COUNT = 5;
+const ROW_COUNT = 3;
+const WILD_ID = "wild";
+const SCATTER_ID = "scatter";
+
+/** @type {SymbolDefinition[]} */
+const SYMBOLS = [
+  { id: "badge", label: "Sheriff", className: "symbol-badge", weight: 5, payouts: { 3: 6, 4: 18, 5: 70 } },
+  { id: "boots", label: "Boots", className: "symbol-boots", weight: 6, payouts: { 3: 5, 4: 15, 5: 55 } },
+  { id: "cowboy", label: "Cowboy", className: "symbol-cowboy", weight: 5, payouts: { 3: 7, 4: 22, 5: 90 } },
+  { id: "wanted", label: "Wanted", className: "symbol-wanted", weight: 7, payouts: { 3: 4, 4: 12, 5: 42 } },
+  { id: "cactus", label: "Cactus", className: "symbol-cactus", weight: 8, payouts: { 3: 3, 4: 10, 5: 32 } },
+  { id: "dynamite", label: "Dynamite", className: "symbol-dynamite", weight: 7, payouts: { 3: 4, 4: 14, 5: 46 } },
+  { id: SCATTER_ID, label: "Scatter", className: "symbol-scatter", weight: 4, payouts: { 3: 2, 4: 8, 5: 35 } },
+  { id: WILD_ID, label: "Wild", className: "symbol-wild", weight: 4, payouts: { 3: 8, 4: 24, 5: 100 } },
+  { id: "a", label: "A", className: "symbol-letter", weight: 10, payouts: { 3: 2, 4: 6, 5: 18 } },
+  { id: "k", label: "K", className: "symbol-letter", weight: 11, payouts: { 3: 2, 4: 5, 5: 16 } },
+  { id: "q", label: "Q", className: "symbol-letter", weight: 12, payouts: { 3: 1, 4: 4, 5: 14 } },
+  { id: "j", label: "J", className: "symbol-letter", weight: 13, payouts: { 3: 1, 4: 3, 5: 12 } },
+  { id: "10", label: "10", className: "symbol-number", weight: 14, payouts: { 3: 1, 4: 3, 5: 10 } }
+];
+
+/** @type {{name: string, rows: number[]}[]} */
+const PAYLINES = [
+  { name: "top", rows: [0, 0, 0, 0, 0] },
+  { name: "middle", rows: [1, 1, 1, 1, 1] },
+  { name: "bottom", rows: [2, 2, 2, 2, 2] },
+  { name: "v", rows: [0, 1, 2, 1, 0] },
+  { name: "chevron", rows: [2, 1, 0, 1, 2] }
+];
+
+/** @type {Record<string, SymbolDefinition>} */
+const SYMBOL_MAP = SYMBOLS.reduce((map, symbol) => {
+  map[symbol.id] = symbol;
+  return map;
+}, {});
+
+/** @type {string[]} */
+const WEIGHTED_SYMBOL_IDS = SYMBOLS.flatMap((symbol) => Array.from({ length: symbol.weight }, () => symbol.id));
+
+/**
+ * @typedef {Object} WinResult
+ * @property {number} totalWin
+ * @property {number} freeSpinsAwarded
+ * @property {{reel: number, row: number}[]} winningCells
+ * @property {string[]} activeHorizontalLines
+ */
+
+/**
+ * @typedef {Object} SlotState
+ * @property {number} balance
+ * @property {number} bet
+ * @property {boolean} isSpinning
+ * @property {number} freeSpins
+ * @property {string[][]} board
+ */
+
+/** @type {SlotState} */
+const state = {
+  balance: DEFAULT_BALANCE,
+  bet: MIN_BET,
+  isSpinning: false,
+  freeSpins: 0,
+  board: createBoard()
+};
+
+/**
+ * Returns a random integer between zero and maxExclusive minus one.
+ * @param {number} maxExclusive
+ * @returns {number}
+ */
+function randomInteger(maxExclusive) {
+  return Math.floor(Math.random() * maxExclusive);
+}
+
+/**
+ * Chooses a symbol id using configured symbol weights.
+ * @returns {string}
+ */
+function getRandomSymbolId() {
+  return WEIGHTED_SYMBOL_IDS[randomInteger(WEIGHTED_SYMBOL_IDS.length)];
+}
+
+/**
+ * Creates a 3 x 5 board represented as rows containing reel results.
+ * @returns {string[][]}
+ */
+function createBoard() {
+  return Array.from({ length: ROW_COUNT }, () => (
+    Array.from({ length: REEL_COUNT }, () => getRandomSymbolId())
+  ));
+}
+
+/**
+ * Clamps a bet value to supported bet bounds.
+ * @param {number} value
+ * @returns {number}
+ */
+function clampBet(value) {
+  return Math.min(MAX_BET, Math.max(MIN_BET, value));
+}
+
+/**
+ * Gets the best payline match from the leftmost reel.
+ * @param {string[]} lineSymbols
+ * @returns {{symbolId: string, count: number} | null}
+ */
+function getLeftToRightMatch(lineSymbols) {
+  const firstNonWild = lineSymbols.find((symbolId) => symbolId !== WILD_ID && symbolId !== SCATTER_ID);
+  const targetId = firstNonWild || WILD_ID;
+  let count = 0;
+
+  for (const symbolId of lineSymbols) {
+    if (symbolId === SCATTER_ID) {
+      break;
+    }
+
+    if (symbolId === targetId || symbolId === WILD_ID) {
+      count += 1;
+      continue;
+    }
+
+    break;
+  }
+
+  return count >= 3 ? { symbolId: targetId, count } : null;
+}
+
+/**
+ * Counts a symbol anywhere on the board.
+ * @param {string[][]} board
+ * @param {string} symbolId
+ * @returns {number}
+ */
+function countSymbol(board, symbolId) {
+  return board.flat().filter((currentId) => currentId === symbolId).length;
+}
+
+/**
+ * Evaluates line and scatter wins for a board.
+ * @param {string[][]} board
+ * @param {number} bet
+ * @returns {WinResult}
+ */
+function evaluateBoard(board, bet) {
+  const winningCellKeys = new Set();
+  const activeHorizontalLines = new Set();
+  let totalWin = 0;
+
+  for (const payline of PAYLINES) {
+    const lineSymbols = payline.rows.map((row, reel) => board[row][reel]);
+    const match = getLeftToRightMatch(lineSymbols);
+
+    if (!match) {
+      continue;
+    }
+
+    const symbol = SYMBOL_MAP[match.symbolId];
+    totalWin += bet * symbol.payouts[match.count];
+
+    for (let reel = 0; reel < match.count; reel += 1) {
+      winningCellKeys.add(`${reel}:${payline.rows[reel]}`);
+    }
+
+    if (payline.name === "top" || payline.name === "middle" || payline.name === "bottom") {
+      activeHorizontalLines.add(payline.name);
+    }
+  }
+
+  const scatterCount = countSymbol(board, SCATTER_ID);
+  const scatterPayout = SYMBOL_MAP[SCATTER_ID].payouts[Math.min(scatterCount, 5)] || 0;
+  let freeSpinsAwarded = 0;
+
+  if (scatterCount >= 3) {
+    totalWin += bet * scatterPayout;
+    freeSpinsAwarded = 1;
+
+    board.forEach((row, rowIndex) => {
+      row.forEach((symbolId, reel) => {
+        if (symbolId === SCATTER_ID) {
+          winningCellKeys.add(`${reel}:${rowIndex}`);
+        }
+      });
+    });
+  }
+
+  return {
+    totalWin,
+    freeSpinsAwarded,
+    winningCells: Array.from(winningCellKeys).map((key) => {
+      const [reel, row] = key.split(":").map(Number);
+      return { reel, row };
+    }),
+    activeHorizontalLines: Array.from(activeHorizontalLines)
+  };
+}
+
+/**
+ * Builds one symbol cell for the reel display.
+ * @param {string} symbolId
+ * @param {number} reel
+ * @param {number} row
+ * @returns {HTMLDivElement}
+ */
+function createSymbolCell(symbolId, reel, row) {
+  const symbol = SYMBOL_MAP[symbolId];
+  const cell = document.createElement("div");
+  const artText = symbol.className === "symbol-letter" || symbol.className === "symbol-number" ? symbol.label : "";
+
+  cell.className = `symbol-cell ${symbol.className}`;
+  cell.dataset.reel = String(reel);
+  cell.dataset.row = String(row);
+  cell.dataset.symbol = symbol.id;
+  cell.innerHTML = `
+    <div class="symbol-stack">
+      <span class="symbol-art" aria-hidden="true">${artText}</span>
+      <span class="symbol-label">${symbol.label}</span>
+    </div>
+  `;
+  return cell;
+}
+
+/**
+ * Renders the current board into all reel containers.
+ * @param {string[][]} board
+ */
+function renderBoard(board) {
+  const reels = document.querySelectorAll(".reel");
+  reels.forEach((reelElement, reelIndex) => {
+    reelElement.innerHTML = "";
+
+    for (let row = 0; row < ROW_COUNT; row += 1) {
+      reelElement.appendChild(createSymbolCell(board[row][reelIndex], reelIndex, row));
+    }
+  });
+}
+
+/**
+ * Updates text displays and disabled states.
+ */
+function updateDisplays() {
+  document.getElementById("balanceDisplay").textContent = String(state.balance);
+  document.getElementById("betDisplay").textContent = String(state.bet);
+  document.getElementById("decreaseBetButton").disabled = state.isSpinning || state.bet <= MIN_BET;
+  document.getElementById("increaseBetButton").disabled = state.isSpinning || state.bet >= MAX_BET;
+  document.getElementById("spinButton").disabled = state.isSpinning || (state.balance < state.bet && state.freeSpins === 0);
+}
+
+/**
+ * Clears visible win styling.
+ */
+function clearWinHighlights() {
+  document.querySelectorAll(".symbol-cell.win").forEach((cell) => cell.classList.remove("win"));
+  document.querySelectorAll(".payline-guide.active").forEach((line) => line.classList.remove("active"));
+}
+
+/**
+ * Highlights winning symbols and horizontal paylines.
+ * @param {WinResult} result
+ */
+function highlightWins(result) {
+  for (const cell of result.winningCells) {
+    const element = document.querySelector(`[data-reel="${cell.reel}"][data-row="${cell.row}"]`);
+    if (element) {
+      element.classList.add("win");
+    }
+  }
+
+  for (const lineName of result.activeHorizontalLines) {
+    const line = document.querySelector(`.payline-guide-${lineName}`);
+    if (line) {
+      line.classList.add("active");
+    }
+  }
+}
+
+/**
+ * Generates a short animated strip in one reel while it spins.
+ * @param {Element} reelElement
+ * @param {number} reelIndex
+ */
+function renderSpinStrip(reelElement, reelIndex) {
+  reelElement.innerHTML = "";
+  reelElement.classList.add("spinning");
+
+  for (let row = 0; row < ROW_COUNT; row += 1) {
+    reelElement.appendChild(createSymbolCell(getRandomSymbolId(), reelIndex, row));
+  }
+}
+
+/**
+ * Plays a tiny synth effect without external files.
+ * @param {"spin" | "win" | "lose"} type
+ */
+function playSound(type) {
+  const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+
+  if (!AudioContextClass) {
+    return;
+  }
+
+  try {
+    const audioContext = new AudioContextClass();
+    const oscillator = audioContext.createOscillator();
+    const gain = audioContext.createGain();
+    const now = audioContext.currentTime;
+    const frequency = type === "win" ? 720 : type === "spin" ? 180 : 120;
+
+    oscillator.type = type === "win" ? "triangle" : "square";
+    oscillator.frequency.setValueAtTime(frequency, now);
+    oscillator.frequency.exponentialRampToValueAtTime(type === "win" ? 980 : 95, now + 0.15);
+    gain.gain.setValueAtTime(0.001, now);
+    gain.gain.exponentialRampToValueAtTime(type === "win" ? 0.08 : 0.045, now + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
+    oscillator.connect(gain);
+    gain.connect(audioContext.destination);
+    oscillator.start(now);
+    oscillator.stop(now + 0.2);
+  } catch (error) {
+    console.warn("Audio playback failed.", error);
+  }
+}
+
+/**
+ * Sets the main game message.
+ * @param {string} text
+ * @param {boolean} isBigWin
+ */
+function setMessage(text, isBigWin = false) {
+  const message = document.getElementById("statusMessage");
+  message.textContent = text;
+  message.classList.toggle("big-win", isBigWin);
+}
+
+/**
+ * Handles the end of a spin once all reels have stopped.
+ * @param {string[][]} board
+ * @param {boolean} usedFreeSpin
+ */
+function settleSpin(board, usedFreeSpin) {
+  const result = evaluateBoard(board, state.bet);
+  state.balance += result.totalWin;
+  state.freeSpins += result.freeSpinsAwarded;
+  state.isSpinning = false;
+
+  if (usedFreeSpin) {
+    state.freeSpins = Math.max(0, state.freeSpins);
+  }
+
+  document.getElementById("winDisplay").textContent = `Win: ${result.totalWin}`;
+  highlightWins(result);
+
+  if (result.totalWin >= state.bet * 20) {
+    setMessage(`Big Win ${result.totalWin}!`, true);
+    playSound("win");
+  } else if (result.totalWin > 0) {
+    setMessage(result.freeSpinsAwarded > 0 ? `Nice Hit + Free Spin (${result.totalWin})` : `Nice Hit ${result.totalWin}`);
+    playSound("win");
+  } else {
+    setMessage("Try Again");
+    playSound("lose");
+  }
+
+  updateDisplays();
+}
+
+/**
+ * Starts one complete spin sequence.
+ */
+function spin() {
+  const usedFreeSpin = state.freeSpins > 0;
+
+  if (state.isSpinning || (!usedFreeSpin && state.balance < state.bet)) {
+    return;
+  }
+
+  state.isSpinning = true;
+  clearWinHighlights();
+  setMessage(usedFreeSpin ? "Free spin rolling" : "Reels spinning");
+  document.getElementById("winDisplay").textContent = "Win: 0";
+
+  if (usedFreeSpin) {
+    state.freeSpins -= 1;
+  } else {
+    state.balance -= state.bet;
+  }
+
+  updateDisplays();
+  playSound("spin");
+
+  const nextBoard = createBoard();
+  const reels = Array.from(document.querySelectorAll(".reel"));
+
+  reels.forEach((reelElement, reelIndex) => {
+    const interval = window.setInterval(() => renderSpinStrip(reelElement, reelIndex), 86);
+    const stopDelay = 650 + reelIndex * 260;
+
+    window.setTimeout(() => {
+      window.clearInterval(interval);
+      reelElement.classList.remove("spinning");
+      reelElement.innerHTML = "";
+
+      for (let row = 0; row < ROW_COUNT; row += 1) {
+        reelElement.appendChild(createSymbolCell(nextBoard[row][reelIndex], reelIndex, row));
+      }
+
+      if (reelIndex === reels.length - 1) {
+        state.board = nextBoard;
+        settleSpin(nextBoard, usedFreeSpin);
+      }
+    }, stopDelay);
+  });
+}
+
+/**
+ * Changes the active bet by one step.
+ * @param {number} direction
+ */
+function changeBet(direction) {
+  if (state.isSpinning) {
+    return;
+  }
+
+  state.bet = clampBet(state.bet + direction * BET_STEP);
+  updateDisplays();
+}
+
+/**
+ * Wires UI events once the document is ready.
+ */
+function initializeGame() {
+  renderBoard(state.board);
+  updateDisplays();
+  document.getElementById("spinButton").addEventListener("click", spin);
+  document.getElementById("decreaseBetButton").addEventListener("click", () => changeBet(-1));
+  document.getElementById("increaseBetButton").addEventListener("click", () => changeBet(1));
+}
+
+if (typeof document !== "undefined") {
+  document.addEventListener("DOMContentLoaded", initializeGame);
+}
+
+if (typeof module !== "undefined") {
+  module.exports = {
+    MIN_BET,
+    MAX_BET,
+    SYMBOLS,
+    PAYLINES,
+    clampBet,
+    countSymbol,
+    evaluateBoard,
+    getLeftToRightMatch
+  };
+}
