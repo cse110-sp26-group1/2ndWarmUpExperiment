@@ -248,6 +248,7 @@ Preserve all existing functionality, but enhance the game’s audio experience b
 
 ## List what it didn't get correct:
 - doesnt put "try again" in subtitle
+- added white circle on top of wildcard symbol
 
 
 ## List any unexpected behavior or errors it introduced or any functionality it may have removed:
