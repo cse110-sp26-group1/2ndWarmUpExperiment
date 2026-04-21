@@ -204,11 +204,21 @@ Important:
 
 ## List what it got correct:
 
--
+- has 5x3 layout
+- has increase/decrease for adjusting bets, spin button, balance
+- balance is updated as we play the game
+- settings button present
+- matches themes and has right symbols
+- prevents multiple spins
+- button functionality is fine
 
 ## List what it got wrong:
 
--
+- playline is only present if it is a straightline
+- shows win/lose messages but not as "pop-ups"
+- control panel is somewhat transparent but not fully transparent
+- unit tests not present in files
+- index.html file and style.css file not documented
 
 ## List any unexpected behavior or errors it introduced or any functionality it may have removed:
 
