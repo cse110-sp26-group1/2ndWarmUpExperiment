@@ -234,3 +234,33 @@ If Yes:
 - Whether the fix introduced new issues or resolved the problem:
 
 ---
+# Prompt 2 Entry
+
+## Prompt Used
+Preserve all existing functionality, but enhance the game’s audio experience by adding more engaging sound effects (e.g., for spinning and jackpot wins). Replace the current static win message bar with a dynamic pop-up to display win amounts and messages. Limit pop-ups to positive feedback only (such as wins or jackpots), and handle negative outcomes (e.g., losses or “try again”) in a subtle, non-intrusive way without using pop-ups. Please don’t introduce anything additional beyond these changes. 
+
+# Result
+## List what it got correct:
+- Enhanced gamed audio
+  - spinning audio changed
+  - winning audio changed
+- popups display win with the amount won
+
+## List what it didn't get correct:
+- doesnt put "try again" in subtitle
+
+
+## List any unexpected behavior or errors it introduced or any functionality it may have removed:
+
+## Manual Edits (Only if LLM failed after attempts)
+
+- [x] None
+- [ ] Yes
+
+If Yes:
+
+- What was manually changed:
+- Why manual editing was necessary:
+- Whether the fix introduced new issues or resolved the problem:
+
+---
