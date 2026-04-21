@@ -80,6 +80,9 @@ const state = {
   board: createBoard()
 };
 
+let audioContext = null;
+let popupTimeout = 0;
+
 /**
  * Returns a random integer between zero and maxExclusive minus one.
  * @param {number} maxExclusive
@@ -291,6 +294,55 @@ function highlightWins(result) {
 }
 
 /**
+ * Gets a shared audio context after user interaction allows playback.
+ * @returns {AudioContext | null}
+ */
+function getAudioContext() {
+  const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+
+  if (!AudioContextClass) {
+    return null;
+  }
+
+  if (!audioContext) {
+    audioContext = new AudioContextClass();
+  }
+
+  if (audioContext.state === "suspended") {
+    audioContext.resume();
+  }
+
+  return audioContext;
+}
+
+/**
+ * Schedules one compact synth tone.
+ * @param {AudioContext} context
+ * @param {number} start
+ * @param {number} duration
+ * @param {number} startFrequency
+ * @param {number} endFrequency
+ * @param {OscillatorType} type
+ * @param {number} volume
+ */
+function playTone(context, start, duration, startFrequency, endFrequency, type, volume) {
+  const oscillator = context.createOscillator();
+  const gain = context.createGain();
+  const end = start + duration;
+
+  oscillator.type = type;
+  oscillator.frequency.setValueAtTime(startFrequency, start);
+  oscillator.frequency.exponentialRampToValueAtTime(endFrequency, end);
+  gain.gain.setValueAtTime(0.001, start);
+  gain.gain.exponentialRampToValueAtTime(volume, start + 0.018);
+  gain.gain.exponentialRampToValueAtTime(0.001, end);
+  oscillator.connect(gain);
+  gain.connect(context.destination);
+  oscillator.start(start);
+  oscillator.stop(end + 0.02);
+}
+
+/**
  * Generates a short animated strip in one reel while it spins.
  * @param {Element} reelElement
  * @param {number} reelIndex
@@ -305,33 +357,42 @@ function renderSpinStrip(reelElement, reelIndex) {
 }
 
 /**
- * Plays a tiny synth effect without external files.
- * @param {"spin" | "win" | "lose"} type
+ * Plays synthesized game effects without external audio files.
+ * @param {"spin" | "reelStop" | "win" | "jackpot"} type
  */
 function playSound(type) {
-  const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+  const context = getAudioContext();
 
-  if (!AudioContextClass) {
+  if (!context) {
     return;
   }
 
   try {
-    const audioContext = new AudioContextClass();
-    const oscillator = audioContext.createOscillator();
-    const gain = audioContext.createGain();
-    const now = audioContext.currentTime;
-    const frequency = type === "win" ? 720 : type === "spin" ? 180 : 120;
+    const now = context.currentTime;
 
-    oscillator.type = type === "win" ? "triangle" : "square";
-    oscillator.frequency.setValueAtTime(frequency, now);
-    oscillator.frequency.exponentialRampToValueAtTime(type === "win" ? 980 : 95, now + 0.15);
-    gain.gain.setValueAtTime(0.001, now);
-    gain.gain.exponentialRampToValueAtTime(type === "win" ? 0.08 : 0.045, now + 0.02);
-    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
-    oscillator.connect(gain);
-    gain.connect(audioContext.destination);
-    oscillator.start(now);
-    oscillator.stop(now + 0.2);
+    if (type === "spin") {
+      for (let step = 0; step < 8; step += 1) {
+        playTone(context, now + step * 0.055, 0.075, 210 + step * 18, 120 + step * 10, "sawtooth", 0.028);
+      }
+      return;
+    }
+
+    if (type === "reelStop") {
+      playTone(context, now, 0.07, 330, 180, "square", 0.035);
+      return;
+    }
+
+    if (type === "jackpot") {
+      [523, 659, 784, 1047, 1319].forEach((frequency, index) => {
+        playTone(context, now + index * 0.095, 0.18, frequency, frequency * 1.18, "triangle", 0.07);
+      });
+      playTone(context, now + 0.08, 0.5, 196, 392, "sine", 0.035);
+      return;
+    }
+
+    [523, 659, 784].forEach((frequency, index) => {
+      playTone(context, now + index * 0.09, 0.16, frequency, frequency * 1.08, "triangle", 0.06);
+    });
   } catch (error) {
     console.warn("Audio playback failed.", error);
   }
@@ -349,6 +410,45 @@ function setMessage(text, isBigWin = false) {
 }
 
 /**
+ * Shows positive win feedback in a temporary popup.
+ * @param {string} label
+ * @param {number} amount
+ * @param {boolean} isJackpot
+ */
+function showWinPopup(label, amount, isJackpot = false) {
+  const popup = document.getElementById("winPopup");
+  const popupLabel = document.getElementById("winPopupLabel");
+  const popupAmount = document.getElementById("winPopupAmount");
+
+  window.clearTimeout(popupTimeout);
+  popupLabel.textContent = label;
+  popupAmount.textContent = String(amount);
+  popup.classList.toggle("jackpot", isJackpot);
+  popup.classList.remove("show");
+  popup.setAttribute("aria-hidden", "false");
+
+  window.requestAnimationFrame(() => {
+    popup.classList.add("show");
+  });
+
+  popupTimeout = window.setTimeout(() => {
+    popup.classList.remove("show");
+    popup.setAttribute("aria-hidden", "true");
+  }, 2300);
+}
+
+/**
+ * Hides any active win popup.
+ */
+function hideWinPopup() {
+  const popup = document.getElementById("winPopup");
+
+  window.clearTimeout(popupTimeout);
+  popup.classList.remove("show", "jackpot");
+  popup.setAttribute("aria-hidden", "true");
+}
+
+/**
  * Handles the end of a spin once all reels have stopped.
  * @param {string[][]} board
  * @param {boolean} usedFreeSpin
@@ -363,18 +463,19 @@ function settleSpin(board, usedFreeSpin) {
     state.freeSpins = Math.max(0, state.freeSpins);
   }
 
-  document.getElementById("winDisplay").textContent = `Win: ${result.totalWin}`;
   highlightWins(result);
 
   if (result.totalWin >= state.bet * 20) {
-    setMessage(`Big Win ${result.totalWin}!`, true);
-    playSound("win");
+    setMessage("Jackpot win", true);
+    showWinPopup("Jackpot", result.totalWin, true);
+    playSound("jackpot");
   } else if (result.totalWin > 0) {
-    setMessage(result.freeSpinsAwarded > 0 ? `Nice Hit + Free Spin (${result.totalWin})` : `Nice Hit ${result.totalWin}`);
+    const label = result.freeSpinsAwarded > 0 ? "Win + Free Spin" : "Win";
+    setMessage(result.freeSpinsAwarded > 0 ? "Free spin awarded" : "Win paid");
+    showWinPopup(label, result.totalWin);
     playSound("win");
   } else {
-    setMessage("Try Again");
-    playSound("lose");
+    setMessage("No win this round");
   }
 
   updateDisplays();
@@ -392,8 +493,8 @@ function spin() {
 
   state.isSpinning = true;
   clearWinHighlights();
+  hideWinPopup();
   setMessage(usedFreeSpin ? "Free spin rolling" : "Reels spinning");
-  document.getElementById("winDisplay").textContent = "Win: 0";
 
   if (usedFreeSpin) {
     state.freeSpins -= 1;
@@ -419,6 +520,8 @@ function spin() {
       for (let row = 0; row < ROW_COUNT; row += 1) {
         reelElement.appendChild(createSymbolCell(nextBoard[row][reelIndex], reelIndex, row));
       }
+
+      playSound("reelStop");
 
       if (reelIndex === reels.length - 1) {
         state.board = nextBoard;

@@ -17,7 +17,6 @@
 
         <div class="message-board" aria-live="polite">
           <span id="statusMessage">Place your bet and spin</span>
-          <span id="winDisplay">Win: 0</span>
         </div>
 
         <div id="reelWindow" class="reel-window" role="group" aria-label="Five reels with three visible rows">
@@ -29,6 +28,11 @@
           <div class="reel" data-reel="2"></div>
           <div class="reel" data-reel="3"></div>
           <div class="reel" data-reel="4"></div>
+        </div>
+
+        <div id="winPopup" class="win-popup" aria-live="polite" aria-hidden="true">
+          <span id="winPopupLabel" class="win-popup-label">Win</span>
+          <strong id="winPopupAmount">0</strong>
         </div>
 
         <footer class="control-panel" aria-label="Game controls">

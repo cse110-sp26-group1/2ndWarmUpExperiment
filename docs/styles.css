@@ -128,9 +128,6 @@ h1 {
 }
 
 .message-board {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
   min-height: 48px;
   margin: 0 auto 14px;
   padding: 9px 18px;
@@ -141,19 +138,16 @@ h1 {
   color: #fff0bd;
   font-size: 1.08rem;
   font-weight: 700;
+  text-align: center;
 }
 
 #statusMessage {
-  min-width: 0;
+  display: block;
 }
 
 #statusMessage.big-win {
   color: #fff4a6;
   text-shadow: 0 0 14px #f8b23d;
-}
-
-#winDisplay {
-  color: var(--gold-bright);
 }
 
 .reel-window {
@@ -173,6 +167,59 @@ h1 {
     inset 0 0 0 2px #9b5b2b,
     inset 0 0 42px rgba(0, 0, 0, 0.78),
     0 12px 28px rgba(13, 6, 2, 0.62);
+}
+
+.win-popup {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 8;
+  display: grid;
+  min-width: 230px;
+  padding: 18px 28px 20px;
+  pointer-events: none;
+  border: 3px solid var(--gold-bright);
+  border-radius: var(--frame-radius);
+  place-items: center;
+  background:
+    radial-gradient(circle at 50% 0, rgba(255, 245, 180, 0.55), transparent 46%),
+    linear-gradient(180deg, rgba(120, 59, 20, 0.96), rgba(34, 15, 8, 0.96));
+  box-shadow:
+    0 20px 48px rgba(18, 6, 2, 0.5),
+    0 0 28px rgba(255, 218, 94, 0.62),
+    inset 0 0 22px rgba(255, 225, 104, 0.22);
+  opacity: 0;
+  transform: translate(-50%, -42%) scale(0.82);
+  transition: opacity 180ms ease, transform 180ms ease;
+}
+
+.win-popup.show {
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1);
+  animation: popupGlow 820ms ease-in-out infinite alternate;
+}
+
+.win-popup.jackpot {
+  min-width: 280px;
+  border-width: 4px;
+}
+
+.win-popup-label {
+  color: #fff1b6;
+  font-size: 1.05rem;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  text-shadow: 0 2px 0 #4f230f;
+  text-transform: uppercase;
+}
+
+#winPopupAmount {
+  color: var(--gold-bright);
+  font-size: clamp(2.8rem, 8vw, 5.6rem);
+  line-height: 0.95;
+  text-shadow:
+    0 4px 0 #7a3814,
+    0 0 22px rgba(255, 225, 104, 0.82);
 }
 
 .payline-guide {
@@ -568,6 +615,22 @@ h1 {
   }
 }
 
+@keyframes popupGlow {
+  from {
+    box-shadow:
+      0 20px 48px rgba(18, 6, 2, 0.5),
+      0 0 24px rgba(255, 218, 94, 0.58),
+      inset 0 0 20px rgba(255, 225, 104, 0.2);
+  }
+
+  to {
+    box-shadow:
+      0 20px 48px rgba(18, 6, 2, 0.5),
+      0 0 38px rgba(255, 235, 150, 0.84),
+      inset 0 0 28px rgba(255, 225, 104, 0.3);
+  }
+}
+
 @media (max-width: 920px) {
   :root {
     --cell-size: 112px;
@@ -619,8 +682,12 @@ h1 {
     font-size: 2.6rem;
   }
 
-  .message-board,
   .bet-controls {
     flex-wrap: wrap;
+  }
+
+  .win-popup {
+    min-width: min(250px, 78vw);
+    padding: 14px 18px 16px;
   }
 }
