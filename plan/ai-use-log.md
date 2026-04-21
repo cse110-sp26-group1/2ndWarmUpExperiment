@@ -4,34 +4,34 @@
 
 ### Core System
 
-- [ ] 5x3 slot machine layout (5 reels, 3 rows)
-- [ ] Wild West themed UI (title, colors, styling)
-- [ ] Spin button
-- [ ] Balance system (starting credits)
-- [ ] Betting system (increase/decrease bet with limits)
-- [ ] Reel spinning animation
-- [ ] Reels stop left → right
-- [ ] Randomized symbol generation
+- [x] 5x3 slot machine layout (5 reels, 3 rows)
+- [x] Wild West themed UI (title, colors, styling)
+- [x] Spin button
+- [x] Balance system (starting credits)
+- [x] Betting system (increase/decrease bet with limits)
+- [x] Reel spinning animation
+- [x] Reels stop left → right
+- [x] Randomized symbol generation
 
 ---
 
 ### Symbols
 
-- [ ] High-value themed symbols (badge, boots, cowboy, etc.)
-- [ ] Low-value symbols (A, K, Q, J, 10)
-- [ ] Wild symbol
-- [ ] Scatter symbol
+- [x] High-value themed symbols (badge, boots, cowboy, etc.)
+- [x] Low-value symbols (A, K, Q, J, 10)
+- [x] Wild symbol
+- [x] Scatter symbol
 
 ---
 
 ### Core Game Logic
 
-- [ ] Deduct bet on spin
-- [ ] Left-to-right payline evaluation
-- [ ] 3, 4, 5 of a kind payouts
-- [ ] Paytable object (editable values)
-- [ ] Win calculation updates balance
-- [ ] Prevent spinning with insufficient balance
+- [x] Deduct bet on spin
+- [x] Left-to-right payline evaluation
+- [x] 3, 4, 5 of a kind payouts
+- [x] Paytable object (editable values)
+- [x] Win calculation updates balance
+- [x] Prevent spinning with insufficient balance
 
 ---
 
@@ -55,11 +55,11 @@
 
 ### UX & Feedback
 
-- [ ] Highlight winning symbols/paylines
+- [x] Highlight winning symbols/paylines <mark>can be improved</mark>
 - [ ] Win messages (“Big Win”, “Nice Hit”, etc.) as popups
 - [ ] Spin animation polish
-- [ ] Sound effects (spin, win, jackpot)
-- [ ] Button hover/press effects
+- [x] Sound effects (spin, win, jackpot) <mark>can be improved</mark>
+- [x] Button hover/press effects
 - [ ] Fast spin / skip animation option
 
 ---
@@ -67,7 +67,7 @@
 ### UI Features
 
 - [ ] Transparent control panel (balance, bet, spin)
-- [ ] Settings button (UI present, functionality optional)
+- [x] Settings button (UI present, functionality optional)
 - [ ] Settings panel (toggle sound, etc. if implemented)
 - [ ] Responsive design (tablet/mobile support)
 - [ ] Landscape orientation for mobile screens\*
@@ -84,11 +84,11 @@
 
 ### Code Quality / SWE Requirements
 
-- [ ] JSDoc comments for all functions
-- [ ] Modular, clean function structure
+- [x] JSDoc comments for all functions
+- [x] Modular, clean function structure
 - [ ] No hard-coded values (use config objects)
 - [ ] Linting applied (HTML/CSS/JS)
-- [ ] Error handling implemented
+- [x] Error handling implemented
 
 ---
 
@@ -113,24 +113,150 @@
 
 ## Prompt Used
 
-Paste the exact prompt sent to Codex here
+Build a complete front-end slot machine game using only HTML, CSS, and vanilla JavaScript in separate files: `index.html`, `styles.css`, and `script.js`.
+
+Goal:
+Create a polished browser-based slot machine inspired by a Wild West / desert casino theme, similar to a 5-reel slot interface. It should feel like a real social casino mini-game, with smooth animations, clear UI, and game logic that actually works. Do not add anything not included in the requirements section.
+
+Requirements:
+1. Layout
+- Create a centered slot machine UI with 5 vertical reels and 3 visible rows, with the title of the game, “Gunslinger Gold”, at the top.
+  - Use a Wild West theme: wood frame, gold text, desert-inspired colors, glowing highlights, polished game look.
+  - The slot machine should be the center of attention, everything else should not draw any attention.
+- Add a transparent bottom control panel with:
+  - balance display
+  - spin button
+  - increase/decrease bet buttons (with a bet display)
+- Prioritize quality for a desktop screensize, but add the skeleton for responsiveness for tablet/mobile
+- Create a settings button in the same area as the bet display with no current functionality as of now. It should not do anything. 
+
+
+2. Symbols
+Use themed symbols such as:
+- sheriff badge
+- cowboy boots
+- cowboy portrait
+- wanted poster
+- cactus
+- dynamite
+- money bag scatter
+- holster / wild symbol
+Also include lower-value symbols like A, K, Q, J, 10.
+
+3. Reel behavior
+- Each reel should spin vertically with animation.
+- Reels should stop one after another from left to right.
+- Use JavaScript to randomize results.
+- Display 3 rows x 5 reels after each spin.
+- Prevent multiple spins while a spin is already running.
+
+4. Game logic
+- Start with a default balance, for example 1000 credits.
+- Allow adjustable bet sizes.
+- Deduct bet on spin.
+- Evaluate wins after the reels stop.
+- Implement at least:
+  - left-to-right payline checking
+  - 3, 4, and 5 of a kind payouts
+  - scatter payout or bonus trigger (free spin)
+- Show total win amount and update balance correctly.
+- Add a simple paytable object in JavaScript for easy editing.
+- For max bet, 10 credits minimum and 100 credits maximum. 
+
+5. UX and feedback
+- Highlight winning symbols or paylines.
+- Show a message like “Big Win”, “Nice Hit”, or “Try Again”.
+- Add sound effects for spins and wins.
+- Add subtle hover and button press effects.
+- Make the spin button visually prominent.
+
+6. Code quality
+Your code must be:
+- Linted: source code should be checked for quality: this includes HTML validation, CSS use, and JS style and usage.
+- Documented: Source code must be appropriately documentented. JavaScript should use JSDocs with type annotations.
+- Tested: Unit tests and End-to-end tests with Playwright are required at a bare minimum. Do this as you go - don't save it for the end. 
+Clean: Following the principles of clean code:
+  - Meaningful names.
+  - Easy to read.
+  - Small functions and classes.
+  - Avoid duplicate code (Don’t repeat yourself)
+  - Handle errors.
+- Appropriate abstraction and modularity.
+- Be easy to update.
+- Clear code
+
+
+7. Deliverable
+Return all 3 files fully implemented:
+- `index.html`
+- `styles.css`
+- `script.js`
+
+Important:
+- The project must run by simply opening `index.html` in a browser.
+- Do not leave placeholders like “TODO”.
+- Make the UI visually attractive even without external image assets.
+- Use CSS gradients, borders, shadows, and animations to simulate a premium slot machine look.
+
+![Prompt 1 UI reference](img/prompt1.png)
 
 # Result
 
 ## List what it got correct:
 
--
+- has 5x3 layout
+- has increase/decrease for adjusting bets, spin button, balance
+- balance is updated as we play the game
+- settings button present
+- matches themes and has right symbols
+- prevents multiple spins
+- button functionality is fine
 
 ## List what it got wrong:
 
--
+- playline is only present if it is a straightline
+- shows win/lose messages but not as "pop-ups"
+- control panel is somewhat transparent but not fully transparent
+- unit tests not present in files
+- index.html file and style.css file not documented
 
 ## List any unexpected behavior or errors it introduced or any functionality it may have removed:
 
 ## Manual Edits (Only if LLM failed after attempts)
 
-- None
-- Yes
+- [x] None
+- [ ] Yes
+
+If Yes:
+
+- What was manually changed:
+- Why manual editing was necessary:
+- Whether the fix introduced new issues or resolved the problem:
+
+---
+# Prompt 2 Entry
+
+## Prompt Used
+Preserve all existing functionality, but enhance the game’s audio experience by adding more engaging sound effects (e.g., for spinning and jackpot wins). Replace the current static win message bar with a dynamic pop-up to display win amounts and messages. Limit pop-ups to positive feedback only (such as wins or jackpots), and handle negative outcomes (e.g., losses or “try again”) in a subtle, non-intrusive way without using pop-ups. Please don’t introduce anything additional beyond these changes. 
+
+# Result
+## List what it got correct:
+- Enhanced gamed audio
+  - spinning audio changed
+  - winning audio changed
+- popups display win with the amount won
+
+## List what it didn't get correct:
+- doesnt put "try again" in subtitle
+- added white circle on top of wildcard symbol
+
+
+## List any unexpected behavior or errors it introduced or any functionality it may have removed:
+
+## Manual Edits (Only if LLM failed after attempts)
+
+- [x] None
+- [ ] Yes
 
 If Yes:
 

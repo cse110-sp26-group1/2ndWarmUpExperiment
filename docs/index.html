@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gunslinger Gold</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="script.js" defer></script>
+  </head>
+  <body>
+    <main class="game-shell" aria-labelledby="game-title">
+      <section class="slot-machine" aria-label="Gunslinger Gold slot machine">
+        <header class="machine-header">
+          <p class="saloon-sign">Wild West Casino</p>
+          <h1 id="game-title">Gunslinger Gold</h1>
+        </header>
+
+        <div class="message-board" aria-live="polite">
+          <span id="statusMessage">Place your bet and spin</span>
+        </div>
+
+        <div id="reelWindow" class="reel-window" role="group" aria-label="Five reels with three visible rows">
+          <div class="payline-guide payline-guide-top" aria-hidden="true"></div>
+          <div class="payline-guide payline-guide-middle" aria-hidden="true"></div>
+          <div class="payline-guide payline-guide-bottom" aria-hidden="true"></div>
+          <div class="reel" data-reel="0"></div>
+          <div class="reel" data-reel="1"></div>
+          <div class="reel" data-reel="2"></div>
+          <div class="reel" data-reel="3"></div>
+          <div class="reel" data-reel="4"></div>
+        </div>
+
+        <div id="winPopup" class="win-popup" aria-live="polite" aria-hidden="true">
+          <span id="winPopupLabel" class="win-popup-label">Win</span>
+          <strong id="winPopupAmount">0</strong>
+        </div>
+
+        <footer class="control-panel" aria-label="Game controls">
+          <div class="meter">
+            <span class="meter-label">Balance</span>
+            <strong id="balanceDisplay">1000</strong>
+          </div>
+
+          <div class="bet-controls" role="group" aria-label="Bet controls">
+            <button id="decreaseBetButton" class="round-button" type="button" aria-label="Decrease bet">-</button>
+            <div class="meter bet-meter">
+              <span class="meter-label">Bet</span>
+              <strong id="betDisplay">10</strong>
+            </div>
+            <button id="increaseBetButton" class="round-button" type="button" aria-label="Increase bet">+</button>
+            <button id="settingsButton" class="round-button settings-button" type="button" aria-label="Settings" tabindex="0">
+              <span aria-hidden="true">&#9881;</span>
+            </button>
+          </div>
+
+          <button id="spinButton" class="spin-button" type="button">Spin</button>
+        </footer>
+      </section>
+    </main>
+  </body>
+</html>
