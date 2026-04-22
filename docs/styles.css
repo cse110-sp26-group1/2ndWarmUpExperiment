@@ -13,6 +13,8 @@
   --cell-size: 150px;
   --reel-gap: 10px;
   --frame-radius: 8px;
+  --overlay-padding: 24px;
+  --bonus-panel-max-height: calc(100dvh - (var(--overlay-padding) * 2));
 }
 
 * {
@@ -329,7 +331,7 @@ h1 {
   inset: 0;
   z-index: 30;
   display: grid;
-  padding: 24px;
+  padding: var(--overlay-padding);
   place-items: center;
   background: rgba(18, 8, 3, 0.68);
   opacity: 0;
@@ -344,6 +346,8 @@ h1 {
 
 .bonus-overlay {
   z-index: 32;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .settings-panel {
@@ -499,7 +503,11 @@ h1 {
 
 .bonus-panel {
   width: min(720px, 100%);
+  max-height: min(100%, var(--bonus-panel-max-height));
+  display: flex;
+  flex-direction: column;
   padding: 24px;
+  overflow: hidden;
   border-color: rgba(255, 224, 137, 0.58);
   background:
     linear-gradient(180deg, rgba(118, 59, 24, 0.98), rgba(30, 13, 7, 0.98)),
@@ -533,6 +541,7 @@ h1 {
 }
 
 .bonus-status {
+  flex-shrink: 0;
   margin: 0 0 18px;
 }
 
@@ -582,8 +591,21 @@ h1 {
 
 .bonus-crates {
   display: grid;
+  flex: 1 1 auto;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 14px;
+  min-height: 0;
+  padding: 2px 4px 2px 2px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  align-content: start;
+  scrollbar-gutter: stable both-edges;
+  -webkit-overflow-scrolling: touch;
+}
+
+.bonus-crates:focus-visible {
+  outline: 2px solid var(--gold-bright);
+  outline-offset: 4px;
 }
 
 .big-win-celebration.show {
@@ -1423,9 +1445,16 @@ h1 {
 
 @media (max-width: 720px) {
   .jackpot-strip,
-  .bonus-crates,
   .control-panel {
     grid-template-columns: 1fr;
+  }
+
+  .bonus-panel {
+    padding: 20px 16px;
+  }
+
+  .bonus-crates {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .bonus-status-grid {
@@ -1435,6 +1464,12 @@ h1 {
   .reward-feedback {
     grid-template-columns: 1fr;
     text-align: center;
+  }
+}
+
+@media (max-width: 560px) {
+  .bonus-crates {
+    grid-template-columns: 1fr;
   }
 }
 

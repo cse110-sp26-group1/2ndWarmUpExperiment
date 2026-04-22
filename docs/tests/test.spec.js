@@ -516,6 +516,28 @@ test.describe("unit", () => {
     expect(fallbackIconMarkup).toContain(`data-bonus-icon="${TEST_CONFIG.bonusRewardIcons.mystery}"`);
   });
 
+  test("creates a bounded bonus modal layout state for smaller viewports", async () => {
+    const compactLayout = game.createBonusModalLayoutState(390, 520);
+    const desktopLayout = game.createBonusModalLayoutState(1024, 900);
+    const tinyLayout = game.createBonusModalLayoutState(320, 200);
+
+    expect(compactLayout).toEqual({
+      isCompact: true,
+      maxPanelHeightPx: 472,
+      scrollRegionTabIndex: 0
+    });
+    expect(desktopLayout).toEqual({
+      isCompact: false,
+      maxPanelHeightPx: 852,
+      scrollRegionTabIndex: 0
+    });
+    expect(tinyLayout).toEqual({
+      isCompact: true,
+      maxPanelHeightPx: 200,
+      scrollRegionTabIndex: 0
+    });
+  });
+
   test("grants daily rewards only when the saved login date changes", async () => {
     expect(game.shouldGrantDailyReward(TEST_CONFIG.previousDateKey, TEST_CONFIG.todayDateKey)).toBe(true);
     expect(game.shouldGrantDailyReward(TEST_CONFIG.todayDateKey, TEST_CONFIG.todayDateKey)).toBe(false);
@@ -1077,6 +1099,59 @@ test.describe("bonus modal ui", () => {
     await expect(page.locator("#freeSpinsDisplay")).toContainText(String(prizes[2].value));
     await expect(page.locator("#spinButton")).toBeEnabled();
     await expect(page.locator("#statusMessage")).toContainText("Bonus win");
+  });
+
+  test("keeps the crate list scrollable and keyboard-focusable on a small viewport", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 520 });
+    await gotoGame(page);
+    await openOrderedBonusRound(page);
+
+    const layoutSummary = await page.evaluate(() => {
+      const overlay = document.getElementById("bonusOverlay");
+      const panel = document.getElementById("bonusPanel");
+      const crates = document.getElementById("bonusCrates");
+      const overlayStyle = window.getComputedStyle(overlay);
+      const cratesStyle = window.getComputedStyle(crates);
+
+      return {
+        overlayLayout: overlay.dataset.bonusLayout,
+        overlayOverflowY: overlayStyle.overflowY,
+        panelMaxHeight: panel.style.getPropertyValue("--bonus-panel-max-height"),
+        panelClientHeight: panel.clientHeight,
+        viewportHeight: window.innerHeight,
+        cratesOverflowY: cratesStyle.overflowY,
+        cratesTabIndex: crates.tabIndex,
+        isCratesScrollable: crates.scrollHeight > crates.clientHeight
+      };
+    });
+
+    expect(layoutSummary.overlayLayout).toBe("compact");
+    expect(layoutSummary.overlayOverflowY).toBe("auto");
+    expect(layoutSummary.cratesOverflowY).toBe("auto");
+    expect(layoutSummary.cratesTabIndex).toBe(0);
+    expect(layoutSummary.isCratesScrollable).toBe(true);
+    expect(layoutSummary.panelClientHeight).toBeLessThanOrEqual(layoutSummary.viewportHeight);
+    expect(parseFloat(layoutSummary.panelMaxHeight)).toBeLessThanOrEqual(layoutSummary.viewportHeight);
+
+    await page.locator("#bonusCrates").focus();
+    await expect(page.locator("#bonusCrates")).toBeFocused();
+  });
+
+  test("allows reaching and selecting the last crate after scrolling on a small viewport", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 520 });
+    await gotoGame(page);
+    await openOrderedBonusRound(page);
+
+    const lastCrateIndex = game.BONUS_CONFIG.crateCount - 1;
+    const crates = page.locator(".crate-button");
+
+    await crates.nth(lastCrateIndex).scrollIntoViewIfNeeded();
+    await expect(crates.nth(lastCrateIndex)).toBeInViewport();
+    await crates.nth(lastCrateIndex).click();
+
+    await expect(crates.nth(lastCrateIndex)).toBeDisabled();
+    await expect(crates.nth(lastCrateIndex)).toHaveClass(/crate-button--revealed/);
+    await expect(page.locator("#bonusOverlay")).not.toHaveClass(/show/);
   });
 });
 

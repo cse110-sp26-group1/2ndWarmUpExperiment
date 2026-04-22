@@ -279,6 +279,7 @@ const BONUS_CRATE_STATE_KEYS = Object.freeze({
 const BONUS_UI_CONFIG = Object.freeze({
   elementIds: {
     overlay: "bonusOverlay",
+    panel: "bonusPanel",
     status: "bonusStatus",
     crates: "bonusCrates"
   },
@@ -493,6 +494,13 @@ const BONUS_UI_CONFIG = Object.freeze({
       `
     }
   }
+});
+
+const BONUS_MODAL_LAYOUT_CONFIG = Object.freeze({
+  compactBreakpointPx: 720,
+  minimumPanelHeightPx: 280,
+  scrollRegionTabIndex: 0,
+  viewportPaddingPx: 24
 });
 
 const RETENTION_CONFIG = {
@@ -1206,7 +1214,7 @@ function isValidBonusRoundState(bonusState, config = BONUS_UI_CONFIG) {
 /**
  * Finds the required bonus modal nodes without throwing when markup is missing.
  * @param {typeof BONUS_UI_CONFIG} [config]
- * @returns {{overlay: HTMLElement, status: HTMLElement, crates: HTMLElement} | null}
+ * @returns {{overlay: HTMLElement, panel: HTMLElement, status: HTMLElement, crates: HTMLElement} | null}
  */
 function getBonusRoundElements(config = BONUS_UI_CONFIG) {
   if (typeof document === "undefined") {
@@ -1214,15 +1222,64 @@ function getBonusRoundElements(config = BONUS_UI_CONFIG) {
   }
 
   const overlay = document.getElementById(config.elementIds.overlay);
+  const panel = document.getElementById(config.elementIds.panel);
   const status = document.getElementById(config.elementIds.status);
   const crates = document.getElementById(config.elementIds.crates);
 
-  if (!overlay || !status || !crates) {
+  if (!overlay || !panel || !status || !crates) {
     console.warn(config.messages.missingElement, config.elementIds);
     return null;
   }
 
-  return { overlay, status, crates };
+  return { overlay, panel, status, crates };
+}
+
+/**
+ * Builds responsive layout values for the Pick-a-Crate modal.
+ * @param {number} viewportWidth
+ * @param {number} viewportHeight
+ * @param {typeof BONUS_MODAL_LAYOUT_CONFIG} [config]
+ * @returns {{isCompact: boolean, maxPanelHeightPx: number, scrollRegionTabIndex: number}}
+ */
+function createBonusModalLayoutState(viewportWidth, viewportHeight, config = BONUS_MODAL_LAYOUT_CONFIG) {
+  const safeWidth = Number(viewportWidth);
+  const safeHeight = Number(viewportHeight);
+  const viewportPaddingPx = Math.max(0, Number(config.viewportPaddingPx) || 0);
+  const fallbackHeight = Math.max(0, Number(config.minimumPanelHeightPx) || 0);
+  const availableHeight = Number.isFinite(safeHeight)
+    ? safeHeight - (viewportPaddingPx * 2)
+    : fallbackHeight;
+  const maxPanelHeightPx = Number.isFinite(safeHeight)
+    ? Math.min(safeHeight, Math.max(fallbackHeight, availableHeight))
+    : fallbackHeight;
+
+  return {
+    isCompact: Number.isFinite(safeWidth) ? safeWidth <= config.compactBreakpointPx : false,
+    maxPanelHeightPx,
+    scrollRegionTabIndex: config.scrollRegionTabIndex
+  };
+}
+
+/**
+ * Applies the responsive Pick-a-Crate modal layout attributes and sizing.
+ * @param {{overlay: HTMLElement, panel: HTMLElement, status: HTMLElement, crates: HTMLElement} | null} bonusElements
+ * @param {typeof BONUS_MODAL_LAYOUT_CONFIG} [config]
+ * @returns {{isCompact: boolean, maxPanelHeightPx: number, scrollRegionTabIndex: number} | null}
+ */
+function syncBonusModalLayout(bonusElements = getBonusRoundElements(), config = BONUS_MODAL_LAYOUT_CONFIG) {
+  if (!bonusElements || typeof window === "undefined") {
+    return null;
+  }
+
+  const layoutState = createBonusModalLayoutState(window.innerWidth, window.innerHeight, config);
+  const { overlay, panel, crates } = bonusElements;
+
+  overlay.dataset.bonusLayout = layoutState.isCompact ? "compact" : "default";
+  panel.style.setProperty("--bonus-panel-max-height", `${layoutState.maxPanelHeightPx}px`);
+  crates.tabIndex = layoutState.scrollRegionTabIndex;
+  crates.dataset.scrollable = "true";
+
+  return layoutState;
 }
 
 /**
@@ -3238,9 +3295,14 @@ function setBonusOpen(isOpen) {
     return;
   }
 
-  const { overlay } = bonusElements;
+  const { overlay, crates } = bonusElements;
   overlay.classList.toggle(BONUS_UI_CONFIG.classNames.overlayVisible, isOpen);
   overlay.setAttribute("aria-hidden", String(!isOpen));
+
+  if (isOpen) {
+    syncBonusModalLayout(bonusElements);
+    crates.scrollTop = 0;
+  }
 }
 
 /**
@@ -3260,6 +3322,7 @@ function renderBonusRound() {
     return;
   }
 
+  syncBonusModalLayout(bonusElements);
   renderBonusStatus(bonusElements.status, bonusState);
   renderBonusCrates(bonusElements.crates, bonusState);
 }
@@ -3851,6 +3914,9 @@ function initializeGame() {
 
 if (typeof document !== "undefined") {
   document.addEventListener("DOMContentLoaded", initializeGame);
+  window.addEventListener("resize", () => {
+    syncBonusModalLayout();
+  });
 }
 
 if (typeof module !== "undefined") {
@@ -3858,6 +3924,7 @@ if (typeof module !== "undefined") {
     AUDIO_SETTINGS_CONFIG,
     BONUS_CRATE_STATE_KEYS,
     BONUS_CONFIG,
+    BONUS_MODAL_LAYOUT_CONFIG,
     BONUS_UI_CONFIG,
     FREE_SPIN_CONFIG,
     GAME_LIMITS,
@@ -3883,6 +3950,7 @@ if (typeof module !== "undefined") {
     createDateKey,
     createBoardFeatureGrid,
     createBonusCrateViewModel,
+    createBonusModalLayoutState,
     createBonusStatusViewModel,
     createBonusPrizes,
     createBootsSymbolArt,
@@ -3931,6 +3999,7 @@ if (typeof module !== "undefined") {
     selectNearMissPlan,
     setAudioVolumeState,
     sliderValueToVolume,
+    syncBonusModalLayout,
     shouldHandleSpinShortcut,
     shouldGrantDailyReward,
     toggleAudioMuteState,
