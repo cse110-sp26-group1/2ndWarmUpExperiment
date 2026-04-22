@@ -1,0 +1,1 @@
+[link to paylines logic](https://www.cachecreek.com/slot-machine-paylines)
