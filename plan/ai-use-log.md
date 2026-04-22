@@ -76,8 +76,8 @@
 
 ### Retention Features
 
-- [ ] Daily login rewards (if implemented)
-- [ ] Bonus/free spin reward feedback
+- [x] Daily login rewards (if implemented)
+- [x] Bonus/free spin reward feedback
 
 ---
 
