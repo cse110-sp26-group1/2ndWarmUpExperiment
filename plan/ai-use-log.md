@@ -1678,3 +1678,182 @@ If uncertain, choose the simplest implementation that ensures all crate options 
 
 - [x] None
 - [ ] Yes
+
+# Prompt 20 Entry
+
+You are working on an existing slot machine codebase. Your task is to refactor and improve the code **WITHOUT changing any existing functionality, logic, outputs, behavior, or execution flow**.
+
+**Critical Requirement**
+
+* You must **preserve all existing functionality exactly as-is**.
+* Do **NOT** modify logic, sequencing, timing, or outcomes.
+* Do **NOT** introduce new features, enhancements, or optimizations that alter behavior.
+* Do **NOT** remove or alter any existing tests.
+* Only refactor structure, readability, maintainability, and consistency.
+
+---
+
+## Required Changes
+
+### 1. Complete Missing Constants
+
+* The `SYMBOL_IDS` object is incomplete.
+* Add **all symbols currently used in the slot machine**.
+* Replace any hardcoded symbol values with these constants.
+* Ensure constants are defined in a centralized configuration object.
+
+---
+
+### 2. Remove Magic Numbers
+
+* Replace all hardcoded numeric values with named constants.
+* Store them in clearly structured config objects.
+* Add comments explaining what each constant represents.
+
+---
+
+### 3. Fix State Inconsistency (Spin Speed)
+
+* The main implementation uses:
+
+  ```js
+  state.spinSpeed
+  applySpinSpeed()
+  ```
+* The test file (`docs/tests/test.spec.js`) incorrectly uses:
+
+  ```js
+  fastPlayEnabled
+  ```
+* Replace `fastPlayEnabled` usage in tests with the actual implementation (`state.spinSpeed`).
+* Ensure behavior remains identical.
+
+---
+
+### 4. Fix `collect` Prize Handling
+
+* Currently:
+
+  ```js
+  prize.type === "collect"
+  ```
+
+  falls through the `if/else` chain intentionally.
+* Refactor so `"collect"` is explicitly handled within the conditional chain.
+* Do **NOT** change how it behaves—only make the logic explicit and readable.
+
+---
+
+### 5. Improve Defensive Checks
+
+* Refactor optional chaining (`?.`) and nullish coalescing (`??`) usage for clarity and consistency.
+* Do **NOT** change logic—only improve readability and safety.
+
+---
+
+### 6. Extract Hardcoded Strings
+
+* Audio names and feedback messages are currently hardcoded strings.
+* Move them into constants/config objects.
+* Replace all usages accordingly.
+
+---
+
+### 7. Refactor `evaluateBoard()`
+
+* The function is currently too large and violates the small-scope principle.
+* Split it into modular functions WITHOUT altering behavior:
+
+  * `evaluatePaylines`
+  * `evaluateScatters`
+  * `evaluateMultipliers`
+  * `evaluateBonuses`
+  * etc. (based on existing logic)
+* The final returned `WinResult` must remain **identical**.
+
+---
+
+### 8. Modular Structure
+
+* Break large logic blocks into smaller reusable functions.
+* Keep the same execution order and flow.
+
+---
+
+### 9. Add JSDoc Documentation
+
+* Add JSDoc comments for:
+
+  * All functions
+  * Config objects
+  * Complex logic sections
+* Do not modify implementation while documenting.
+
+---
+
+### 10. Add Linting Compliance
+
+* Ensure the code follows consistent linting rules (e.g., ESLint).
+* Fix formatting, naming, and structure issues only.
+
+---
+
+### 11. Error Handling
+
+* Add safe error handling where appropriate.
+* Do NOT interrupt or alter existing flows.
+* Use non-breaking safeguards (guards, early returns, safe defaults).
+
+---
+
+### 12. Testing Requirements
+
+* All tests must remain in:
+
+  ```
+  docs/tests/test.spec.js
+  ```
+* Do NOT delete or modify existing tests unless required to:
+
+  * Fix the incorrect `fastPlayEnabled` usage
+* Add Playwright end-to-end tests if needed, but:
+
+  * Do NOT change test intent
+  * Do NOT change expected outcomes
+
+---
+
+## Final Constraint
+
+After your changes:
+
+* The application must behave **exactly the same as before**
+* All outputs, animations, win calculations, and flows must remain unchanged
+* Only code quality, structure, and maintainability should improve
+
+---
+
+## Results
+
+### List what it got correct:
+- completed SYMBOL_ID list
+- uses centralized strings 
+- uses applySpinSpeed() instead of fastPlayEnabled()
+- added some new constants, especially BONUS_REWARD_TYPES to handle problems with if/else chain, more prizes can be added to this list. 
+- split the evaluateBoard() into smaller functions like evaluatePaylines,
+  evaluateScatters
+
+
+### List what it didn't get correct:
+- magic numbers not removed
+- did not refactor optional chaining and nullish coelascing
+
+
+### List any unexpected behavior or errors it introduced:
+
+- None
+
+### Manual Edits (Only if LLM failed after attempts)
+
+- [x] None
+- [ ] Yes

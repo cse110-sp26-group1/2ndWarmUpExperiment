@@ -138,6 +138,9 @@
  * @property {{mini: number, major: number, grand: number}} jackpots
  */
 
+/**
+ * Shared numeric gameplay limits used across board generation, betting, and rendering.
+ */
 const GAME_LIMITS = {
   minBet: 10,
   maxBet: 100,
@@ -147,11 +150,67 @@ const GAME_LIMITS = {
   rowCount: 3
 };
 
+/**
+ * Canonical ids for every symbol used by the slot machine.
+ */
 const SYMBOL_IDS = {
+  badge: "badge",
+  boots: "boots",
+  cowboy: "cowboy",
+  wanted: "wanted",
+  cactus: "cactus",
   wild: "wild",
   scatter: "scatter",
-  dynamite: "dynamite"
+  dynamite: "dynamite",
+  a: "a",
+  k: "k",
+  q: "q",
+  j: "j",
+  ten: "10"
 };
+
+/**
+ * Stable reward identifiers used by the bonus round.
+ */
+const BONUS_REWARD_TYPES = Object.freeze({
+  coins: "coins",
+  multiplier: "multiplier",
+  freeSpins: "free-spins",
+  collect: "collect"
+});
+
+/**
+ * Named audio cue ids used by synthesized playback.
+ */
+const AUDIO_CUES = Object.freeze({
+  spin: "spin",
+  reelStop: "reelStop",
+  win: "win",
+  bigWin: "bigWin",
+  jackpot: "jackpot"
+});
+
+/**
+ * Centralized user-facing and diagnostic strings.
+ */
+const UI_TEXT = Object.freeze({
+  warnings: {
+    expectedStringSymbolId: "Expected a string symbol id while rendering.",
+    unknownSymbolId: "Unknown symbol id",
+    audioPlaybackFailed: "Audio playback failed.",
+    keyboardSpinActivationFailed: "Keyboard spin activation failed.",
+    initializeFailed: "Failed to initialize Gunslinger Gold."
+  },
+  messages: {
+    noWin: "No win this round",
+    bigWin: "Big Win",
+    reelsSpinning: "Reels spinning",
+    pickCrate: "Pick a crate for bonus loot",
+    bonusCollected: "Bonus collected",
+    bonusWinPrefix: "Bonus win",
+    jackpotPaidSuffix: "jackpot paid"
+  }
+});
 
 const STORAGE_KEYS = {
   spinSpeed: "gunslinger-gold-spin-speed",
@@ -506,7 +565,7 @@ const BONUS_MODAL_LAYOUT_CONFIG = Object.freeze({
 const RETENTION_CONFIG = {
   feedbackDurationMs: 3200,
   dailyLoginReward: {
-    type: "free-spins",
+    type: BONUS_REWARD_TYPES.freeSpins,
     amount: 3,
     source: "daily-login"
   },
@@ -568,19 +627,19 @@ const DATE_KEY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
 /** @type {SymbolDefinition[]} */
 const SYMBOLS = [
-  { id: "badge", label: "Sheriff", className: "symbol-badge", weight: 10, payouts: { 3: 6, 4: 18, 5: 70 } },
-  { id: "boots", label: "Boots", className: "symbol-boots", weight: 10, payouts: { 3: 5, 4: 15, 5: 55 } },
-  { id: "cowboy", label: "Cowboy", className: "symbol-cowboy", weight: 10, payouts: { 3: 7, 4: 22, 5: 90 } },
-  { id: "wanted", label: "Wanted", className: "symbol-wanted", weight: 9, payouts: { 3: 4, 4: 12, 5: 42 } },
-  { id: "cactus", label: "Cactus", className: "symbol-cactus", weight: 9, payouts: { 3: 3, 4: 10, 5: 32 } },
+  { id: SYMBOL_IDS.badge, label: "Sheriff", className: "symbol-badge", weight: 10, payouts: { 3: 6, 4: 18, 5: 70 } },
+  { id: SYMBOL_IDS.boots, label: "Boots", className: "symbol-boots", weight: 10, payouts: { 3: 5, 4: 15, 5: 55 } },
+  { id: SYMBOL_IDS.cowboy, label: "Cowboy", className: "symbol-cowboy", weight: 10, payouts: { 3: 7, 4: 22, 5: 90 } },
+  { id: SYMBOL_IDS.wanted, label: "Wanted", className: "symbol-wanted", weight: 9, payouts: { 3: 4, 4: 12, 5: 42 } },
+  { id: SYMBOL_IDS.cactus, label: "Cactus", className: "symbol-cactus", weight: 9, payouts: { 3: 3, 4: 10, 5: 32 } },
   { id: SYMBOL_IDS.dynamite, label: "Dynamite", className: "symbol-dynamite", weight: 10, payouts: { 3: 4, 4: 14, 5: 46 } },
   { id: SYMBOL_IDS.scatter, label: "Scatter", className: "symbol-scatter", weight: 7, payouts: { 3: 2, 4: 8, 5: 35 } },
   { id: SYMBOL_IDS.wild, label: "Wild", className: "symbol-wild", weight: 9, payouts: { 3: 8, 4: 24, 5: 100 } },
-  { id: "a", label: "A", className: "symbol-letter", weight: 5, payouts: { 3: 2, 4: 6, 5: 18 } },
-  { id: "k", label: "K", className: "symbol-letter", weight: 5, payouts: { 3: 2, 4: 5, 5: 16 } },
-  { id: "q", label: "Q", className: "symbol-letter", weight: 5, payouts: { 3: 1, 4: 4, 5: 14 } },
-  { id: "j", label: "J", className: "symbol-letter", weight: 6, payouts: { 3: 1, 4: 3, 5: 12 } },
-  { id: "10", label: "10", className: "symbol-number", weight: 6, payouts: { 3: 1, 4: 3, 5: 10 } }
+  { id: SYMBOL_IDS.a, label: "A", className: "symbol-letter", weight: 5, payouts: { 3: 2, 4: 6, 5: 18 } },
+  { id: SYMBOL_IDS.k, label: "K", className: "symbol-letter", weight: 5, payouts: { 3: 2, 4: 5, 5: 16 } },
+  { id: SYMBOL_IDS.q, label: "Q", className: "symbol-letter", weight: 5, payouts: { 3: 1, 4: 4, 5: 14 } },
+  { id: SYMBOL_IDS.j, label: "J", className: "symbol-letter", weight: 6, payouts: { 3: 1, 4: 3, 5: 12 } },
+  { id: SYMBOL_IDS.ten, label: "10", className: "symbol-number", weight: 6, payouts: { 3: 1, 4: 3, 5: 10 } }
 ];
 
 /** @type {{name: string, rows: number[]}[]} */
@@ -607,21 +666,21 @@ const NEAR_MISS_CONFIG = {
       lineName: "top",
       matchCount: 2,
       missReel: 2,
-      eligibleSymbolIds: ["badge", "boots", "cowboy", "wanted", "cactus", "a", "k", "q", "j", "10"]
+      eligibleSymbolIds: [SYMBOL_IDS.badge, SYMBOL_IDS.boots, SYMBOL_IDS.cowboy, SYMBOL_IDS.wanted, SYMBOL_IDS.cactus, SYMBOL_IDS.a, SYMBOL_IDS.k, SYMBOL_IDS.q, SYMBOL_IDS.j, SYMBOL_IDS.ten]
     },
     {
       id: "middle-line-third-reel-slide",
       lineName: "middle",
       matchCount: 2,
       missReel: 2,
-      eligibleSymbolIds: ["badge", "boots", "cowboy", "wanted", "cactus", "a", "k", "q", "j", "10"]
+      eligibleSymbolIds: [SYMBOL_IDS.badge, SYMBOL_IDS.boots, SYMBOL_IDS.cowboy, SYMBOL_IDS.wanted, SYMBOL_IDS.cactus, SYMBOL_IDS.a, SYMBOL_IDS.k, SYMBOL_IDS.q, SYMBOL_IDS.j, SYMBOL_IDS.ten]
     },
     {
       id: "bottom-line-third-reel-slide",
       lineName: "bottom",
       matchCount: 2,
       missReel: 2,
-      eligibleSymbolIds: ["badge", "boots", "cowboy", "wanted", "cactus", "a", "k", "q", "j", "10"]
+      eligibleSymbolIds: [SYMBOL_IDS.badge, SYMBOL_IDS.boots, SYMBOL_IDS.cowboy, SYMBOL_IDS.wanted, SYMBOL_IDS.cactus, SYMBOL_IDS.a, SYMBOL_IDS.k, SYMBOL_IDS.q, SYMBOL_IDS.j, SYMBOL_IDS.ten]
     }
   ]
 };
@@ -786,12 +845,12 @@ function getSymbolDefinition(symbolId) {
   const fallbackSymbol = SYMBOLS[0];
 
   if (typeof symbolId !== "string") {
-    console.warn("Expected a string symbol id while rendering.", symbolId);
+    console.warn(UI_TEXT.warnings.expectedStringSymbolId, symbolId);
     return fallbackSymbol;
   }
 
   if (!SYMBOL_MAP[symbolId]) {
-    console.warn(`Unknown symbol id "${symbolId}" while rendering. Falling back to ${fallbackSymbol.id}.`);
+    console.warn(`${UI_TEXT.warnings.unknownSymbolId} "${symbolId}" while rendering. Falling back to ${fallbackSymbol.id}.`);
     return fallbackSymbol;
   }
 
@@ -2425,13 +2484,13 @@ function getLineMultiplier(lineSymbols, rows, boardFeatures, count, isFreeSpinRo
 }
 
 /**
- * Evaluates line and scatter wins for a board.
+ * Evaluates payline wins without applying scatter or bonus logic.
  * @param {string[][]} board
  * @param {number} bet
  * @param {{boardFeatures?: (BoardCellFeature | null)[][], isFreeSpinRound?: boolean}} [options]
- * @returns {WinResult}
+ * @returns {{winningCellKeys: Set<string>, activeHorizontalLines: Set<string>, lineWins: LineWin[], totalWin: number, appliedMultiplier: number}}
  */
-function evaluateBoard(board, bet, options = {}) {
+function evaluatePaylines(board, bet, options = {}) {
   const winningCellKeys = new Set();
   const activeHorizontalLines = new Set();
   const lineWins = [];
@@ -2480,9 +2539,27 @@ function evaluateBoard(board, bet, options = {}) {
     }
   }
 
+  return {
+    winningCellKeys,
+    activeHorizontalLines,
+    lineWins,
+    totalWin,
+    appliedMultiplier
+  };
+}
+
+/**
+ * Evaluates scatter payout and awarded free spins.
+ * @param {string[][]} board
+ * @param {number} bet
+ * @returns {{winningCellKeys: Set<string>, scatterCount: number, freeSpinsAwarded: number, totalWin: number}}
+ */
+function evaluateScatters(board, bet) {
+  const winningCellKeys = new Set();
   const scatterCount = countSymbol(board, SYMBOL_IDS.scatter);
   const scatterPayout = SYMBOL_MAP[SYMBOL_IDS.scatter].payouts[Math.min(scatterCount, GAME_LIMITS.reelCount)] || 0;
   const freeSpinsAwarded = getFreeSpinAward(scatterCount);
+  let totalWin = 0;
 
   if (scatterCount >= 3) {
     totalWin += bet * scatterPayout;
@@ -2497,17 +2574,61 @@ function evaluateBoard(board, bet, options = {}) {
   }
 
   return {
-    totalWin,
-    freeSpinsAwarded,
-    appliedMultiplier,
+    winningCellKeys,
     scatterCount,
-    bonusTriggered: countSymbol(board, SYMBOL_IDS.dynamite) >= BONUS_CONFIG.triggerCount,
-    winningCells: Array.from(winningCellKeys).map((key) => {
-      const [reel, row] = key.split(":").map(Number);
-      return { reel, row };
-    }),
-    activeHorizontalLines: Array.from(activeHorizontalLines),
-    lineWins
+    freeSpinsAwarded,
+    totalWin
+  };
+}
+
+/**
+ * Evaluates bonus trigger state from the final board.
+ * @param {string[][]} board
+ * @returns {{bonusTriggered: boolean}}
+ */
+function evaluateBonuses(board) {
+  return {
+    bonusTriggered: countSymbol(board, SYMBOL_IDS.dynamite) >= BONUS_CONFIG.triggerCount
+  };
+}
+
+/**
+ * Converts winning-cell keys back into grid coordinates.
+ * @param {Set<string>} winningCellKeys
+ * @returns {{reel: number, row: number}[]}
+ */
+function createWinningCells(winningCellKeys) {
+  return Array.from(winningCellKeys).map((key) => {
+    const [reel, row] = key.split(":").map(Number);
+    return { reel, row };
+  });
+}
+
+/**
+ * Evaluates line wins, scatter wins, and bonus triggers for a board.
+ * @param {string[][]} board
+ * @param {number} bet
+ * @param {{boardFeatures?: (BoardCellFeature | null)[][], isFreeSpinRound?: boolean}} [options]
+ * @returns {WinResult}
+ */
+function evaluateBoard(board, bet, options = {}) {
+  const paylineResult = evaluatePaylines(board, bet, options);
+  const scatterResult = evaluateScatters(board, bet);
+  const bonusResult = evaluateBonuses(board);
+  const winningCellKeys = new Set([
+    ...paylineResult.winningCellKeys,
+    ...scatterResult.winningCellKeys
+  ]);
+
+  return {
+    totalWin: paylineResult.totalWin + scatterResult.totalWin,
+    freeSpinsAwarded: scatterResult.freeSpinsAwarded,
+    appliedMultiplier: paylineResult.appliedMultiplier,
+    scatterCount: scatterResult.scatterCount,
+    bonusTriggered: bonusResult.bonusTriggered,
+    winningCells: createWinningCells(winningCellKeys),
+    activeHorizontalLines: Array.from(paylineResult.activeHorizontalLines),
+    lineWins: paylineResult.lineWins
   };
 }
 
@@ -3027,19 +3148,19 @@ function playSound(type) {
   try {
     const now = context.currentTime;
 
-    if (type === "spin") {
+    if (type === AUDIO_CUES.spin) {
       for (let step = 0; step < 8; step += 1) {
         playTone(context, now + step * 0.055, 0.075, 210 + step * 18, 120 + step * 10, "sawtooth", 0.028 * masterVolume);
       }
       return;
     }
 
-    if (type === "reelStop") {
+    if (type === AUDIO_CUES.reelStop) {
       playTone(context, now, 0.07, 330, 180, "square", 0.035 * masterVolume);
       return;
     }
 
-    if (type === "bigWin") {
+    if (type === AUDIO_CUES.bigWin) {
       [392, 523, 659, 784, 988, 1319].forEach((frequency, index) => {
         playTone(context, now + index * 0.08, 0.2, frequency, frequency * 1.28, "sawtooth", 0.065 * masterVolume);
       });
@@ -3048,7 +3169,7 @@ function playSound(type) {
       return;
     }
 
-    if (type === "jackpot") {
+    if (type === AUDIO_CUES.jackpot) {
       [523, 659, 784, 1047, 1319].forEach((frequency, index) => {
         playTone(context, now + index * 0.095, 0.18, frequency, frequency * 1.18, "triangle", 0.07 * masterVolume);
       });
@@ -3060,7 +3181,7 @@ function playSound(type) {
       playTone(context, now + index * 0.09, 0.16, frequency, frequency * 1.08, "triangle", 0.06 * masterVolume);
     });
   } catch (error) {
-    console.warn("Audio playback failed.", error);
+    console.warn(UI_TEXT.warnings.audioPlaybackFailed, error);
   }
 }
 
@@ -3166,9 +3287,9 @@ function triggerBigWinFeedback(amount) {
   const celebration = document.getElementById("bigWinCelebration");
 
   clearBigWinCelebration();
-  setMessage("Big Win", true);
-  showWinPopup("Big Win", amount, "big-win");
-  playSound("bigWin");
+  setMessage(UI_TEXT.messages.bigWin, true);
+  showWinPopup(UI_TEXT.messages.bigWin, amount, "big-win");
+  playSound(AUDIO_CUES.bigWin);
   populateCoinBurst(celebration, 22);
   celebration.classList.add("show");
   celebration.setAttribute("aria-hidden", "false");
@@ -3193,9 +3314,9 @@ function triggerJackpotFeedback(tier, amount) {
   populateCoinBurst(celebration, JACKPOT_CONFIG.celebrationCoins);
   celebration.classList.add("show");
   celebration.setAttribute("aria-hidden", "false");
-  setMessage(`${tier.toUpperCase()} jackpot paid`, true);
+  setMessage(`${tier.toUpperCase()} ${UI_TEXT.messages.jackpotPaidSuffix}`, true);
   showWinPopup(`${tier.toUpperCase()} Jackpot`, amount, "jackpot");
-  playSound("jackpot");
+  playSound(AUDIO_CUES.jackpot);
   bigWinTimeout = window.setTimeout(clearBigWinCelebration, 3400);
 }
 
@@ -3240,12 +3361,12 @@ function getStatusMessage(result) {
 function createBonusPrizes(bet) {
   const coinValue = (multiplier) => bet * multiplier;
   return shuffleArray([
-    { type: "coins", label: BONUS_CONFIG.labels.coinsSmall, value: coinValue(BONUS_CONFIG.values.coinsSmallMultiplier) },
-    { type: "coins", label: BONUS_CONFIG.labels.coinsMedium, value: coinValue(BONUS_CONFIG.values.coinsMediumMultiplier) },
-    { type: "coins", label: BONUS_CONFIG.labels.coinsLarge, value: coinValue(BONUS_CONFIG.values.coinsLargeMultiplier) },
-    { type: "multiplier", label: BONUS_CONFIG.labels.multiplier, value: BONUS_CONFIG.values.bonusMultiplier },
-    { type: "free-spins", label: BONUS_CONFIG.labels.freeSpins, value: BONUS_CONFIG.values.bonusFreeSpins },
-    { type: "collect", label: BONUS_CONFIG.labels.collect, value: 0 }
+    { type: BONUS_REWARD_TYPES.coins, label: BONUS_CONFIG.labels.coinsSmall, value: coinValue(BONUS_CONFIG.values.coinsSmallMultiplier) },
+    { type: BONUS_REWARD_TYPES.coins, label: BONUS_CONFIG.labels.coinsMedium, value: coinValue(BONUS_CONFIG.values.coinsMediumMultiplier) },
+    { type: BONUS_REWARD_TYPES.coins, label: BONUS_CONFIG.labels.coinsLarge, value: coinValue(BONUS_CONFIG.values.coinsLargeMultiplier) },
+    { type: BONUS_REWARD_TYPES.multiplier, label: BONUS_CONFIG.labels.multiplier, value: BONUS_CONFIG.values.bonusMultiplier },
+    { type: BONUS_REWARD_TYPES.freeSpins, label: BONUS_CONFIG.labels.freeSpins, value: BONUS_CONFIG.values.bonusFreeSpins },
+    { type: BONUS_REWARD_TYPES.collect, label: BONUS_CONFIG.labels.collect, value: 0 }
   ]);
 }
 
@@ -3343,7 +3464,7 @@ function startBonusRound() {
     prizes: createBonusPrizes(state.bet)
   };
 
-  setMessage("Pick a crate for bonus loot");
+  setMessage(UI_TEXT.messages.pickCrate);
   setBonusOpen(true);
   renderBonusRound();
   updateDisplays();
@@ -3366,7 +3487,7 @@ function finishBonusRound() {
   setBonusOpen(false);
 
   const freeSpinText = bonusState.freeSpinsAwarded > 0 ? ` + ${bonusState.freeSpinsAwarded} free spins` : "";
-  setMessage(`Bonus win ${bonusState.totalCoins}${freeSpinText}`);
+  setMessage(`${UI_TEXT.messages.bonusWinPrefix} ${bonusState.totalCoins}${freeSpinText}`);
   showWinPopup(`Bonus Win x${bonusState.bonusMultiplier}`, bonusState.totalCoins);
   updateDisplays();
 
@@ -3399,19 +3520,21 @@ function resolveBonusPick(crateIndex) {
   button.className = getBonusCrateStateClasses({ isSelected: true, isRevealed: true, isDisabled: true });
   button.setAttribute("aria-pressed", "true");
 
-  if (prize.type === "coins") {
+  if (prize.type === BONUS_REWARD_TYPES.coins) {
     bonusState.totalCoins += prize.value * bonusState.bonusMultiplier;
     bonusState.picksMade += 1;
-  } else if (prize.type === "multiplier") {
+  } else if (prize.type === BONUS_REWARD_TYPES.multiplier) {
     bonusState.bonusMultiplier *= prize.value;
     bonusState.picksMade += 1;
-  } else if (prize.type === "free-spins") {
+  } else if (prize.type === BONUS_REWARD_TYPES.freeSpins) {
     bonusState.freeSpinsAwarded += prize.value;
     bonusState.picksMade += 1;
+  } else if (prize.type === BONUS_REWARD_TYPES.collect) {
+    // Collect intentionally ends the round without changing totals.
   }
 
-  const shouldFinish = prize.type === "collect" || bonusState.picksMade >= BONUS_CONFIG.maxPicks;
-  const resultMessage = prize.type === "collect" ? "Bonus collected" : `Revealed ${prize.label}`;
+  const shouldFinish = prize.type === BONUS_REWARD_TYPES.collect || bonusState.picksMade >= BONUS_CONFIG.maxPicks;
+  const resultMessage = prize.type === BONUS_REWARD_TYPES.collect ? UI_TEXT.messages.bonusCollected : `Revealed ${prize.label}`;
   setMessage(resultMessage);
   renderBonusRound();
 
@@ -3453,11 +3576,11 @@ function settleSpin(board, boardFeatures, usedFreeSpin, options = {}) {
   } else if (result.totalWin > 0) {
     setMessage(getStatusMessage(result));
     showWinPopup(getWinLabel(result), result.totalWin);
-    playSound("win");
+    playSound(AUDIO_CUES.win);
   } else if (result.freeSpinsAwarded > 0) {
     setMessage(getStatusMessage(result));
   } else {
-    setMessage("No win this round");
+    setMessage(UI_TEXT.messages.noWin);
   }
 
   if (jackpotTier) {
@@ -3556,7 +3679,7 @@ function stopReelWithNearMiss(reelElement, reelIndex, reels, nextBoard, nextBoar
       }
 
       renderNearMissFinalReel(reelElement, reelIndex, nextBoard, nextBoardFeatures, nearMissPlan);
-      playSound("reelStop");
+      playSound(AUDIO_CUES.reelStop);
       completeSpinAfterReelStop(reelIndex, reels, nextBoard, nextBoardFeatures, usedFreeSpin);
     }, nearMissPlan.timing.slideMs);
 
@@ -3586,7 +3709,7 @@ function spin() {
   clearNearMissVisuals();
   hideWinPopup();
   clearBigWinCelebration();
-  setMessage(usedFreeSpin ? `Free spin rolling (x${FREE_SPIN_CONFIG.multiplier})` : "Reels spinning");
+  setMessage(usedFreeSpin ? `Free spin rolling (x${FREE_SPIN_CONFIG.multiplier})` : UI_TEXT.messages.reelsSpinning);
 
   if (usedFreeSpin) {
     state.freeSpins -= 1;
@@ -3596,7 +3719,7 @@ function spin() {
   }
 
   updateDisplays();
-  playSound("spin");
+  playSound(AUDIO_CUES.spin);
 
   const nextBoard = createBoard();
   const nextBoardFeatures = createBoardFeatureGrid(nextBoard);
@@ -3649,7 +3772,7 @@ function spin() {
       }
 
       renderSettledReel(reelElement, reelIndex, nextBoard, nextBoardFeatures);
-      playSound("reelStop");
+      playSound(AUDIO_CUES.reelStop);
       completeSpinAfterReelStop(reelIndex, reels, nextBoard, nextBoardFeatures, usedFreeSpin);
     }, stopDelay);
 
@@ -3765,7 +3888,7 @@ function triggerSpinButtonClick(config = KEYBOARD_CONFIG) {
     spinButton.click();
     return true;
   } catch (error) {
-    console.warn("Keyboard spin activation failed.", error);
+    console.warn(UI_TEXT.warnings.keyboardSpinActivationFailed, error);
     return false;
   }
 }
@@ -3907,7 +4030,7 @@ function initializeGame() {
       showRewardFeedback(dailyReward);
     }
   } catch (error) {
-    console.error("Failed to initialize Gunslinger Gold.", error);
+    console.error(UI_TEXT.warnings.initializeFailed, error);
     setMessage("Game setup failed. Refresh to retry.");
   }
 }
@@ -3938,6 +4061,10 @@ if (typeof module !== "undefined") {
     BADGE_ART_CONFIG,
     CACTUS_ART_CONFIG,
     COWBOY_ART_CONFIG,
+    SYMBOL_IDS,
+    BONUS_REWARD_TYPES,
+    AUDIO_CUES,
+    UI_TEXT,
     PAYLINES,
     PAYLINE_RENDER_CONFIG,
     SYMBOL_ART_CONFIG,
@@ -3962,13 +4089,17 @@ if (typeof module !== "undefined") {
     createNearMissPlanForPattern,
     createRewardFeedbackContent,
     createBonusIconMarkup,
+    createWinningCells,
     createDynamiteSymbolArt,
     createInlineSymbolSvg,
     createSymbolArtContent,
     createWildSymbolArt,
     determineJackpotTier,
     escapeHtml,
+    evaluateBonuses,
     evaluateBoard,
+    evaluatePaylines,
+    evaluateScatters,
     getEffectiveVolume,
     getBonusCrateStateClass,
     getBonusCrateStateClasses,
