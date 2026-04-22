@@ -20,10 +20,26 @@ const TEST_CONFIG = {
   previousDateKey: createRelativeDateKey(-1),
   dailyRewardStorageKey: game.STORAGE_KEYS.lastLoginDate,
   dailyRewardAmount: game.RETENTION_CONFIG.dailyLoginReward.amount,
+  iconSymbolIds: {
+    badge: "badge",
+    boots: "boots",
+    cactus: "cactus",
+    cowboy: "cowboy",
+    dynamite: game.SYMBOL_IDS ? game.SYMBOL_IDS.dynamite : "dynamite",
+    wild: game.SYMBOL_IDS ? game.SYMBOL_IDS.wild : "wild"
+  },
+  iconSelectors: {
+    badge: "[data-symbol='badge'] .symbol-art",
+    boots: "[data-symbol='boots'] [data-symbol-icon='boots']",
+    cactus: "[data-symbol='cactus'] [data-symbol-icon='cactus']",
+    cowboy: "[data-symbol='cowboy'] [data-symbol-icon='cowboy']",
+    dynamite: "[data-symbol='dynamite'] [data-symbol-icon='dynamite']",
+    wild: "[data-symbol='wild'] [data-symbol-icon='wild']"
+  },
   bonusSpinBoard: [
     ["dynamite", "badge", "dynamite", "k", "a"],
     ["cowboy", "dynamite", "wild", "q", "10"],
-    ["boots", "j", "a", "k", "q"]
+    ["boots", "cactus", "a", "k", "q"]
   ],
   freeSpinBoard: [
     ["scatter", "cowboy", "badge", "k", "q"],
@@ -47,7 +63,7 @@ const TEST_CONFIG = {
   ],
   standardWinBoard: [
     ["badge", "badge", "badge", "q", "10"],
-    ["cowboy", "boots", "a", "j", "q"],
+    ["cowboy", "boots", "cactus", "j", "q"],
     ["a", "q", "j", "10", "k"]
   ],
   twoMatchBoard: [
@@ -402,6 +418,52 @@ test.describe("unit", () => {
     });
   });
 
+  test("renders corrected SVG icon markup for western symbol art", async () => {
+    const badgeSymbol = game.getSymbolDefinition(TEST_CONFIG.iconSymbolIds.badge);
+    const bootsArt = game.createSymbolArtContent(game.getSymbolDefinition(TEST_CONFIG.iconSymbolIds.boots));
+    const cactusArt = game.createSymbolArtContent(game.getSymbolDefinition(TEST_CONFIG.iconSymbolIds.cactus));
+    const cowboyArt = game.createSymbolArtContent(game.getSymbolDefinition(TEST_CONFIG.iconSymbolIds.cowboy));
+    const dynamiteArt = game.createSymbolArtContent(game.getSymbolDefinition(TEST_CONFIG.iconSymbolIds.dynamite));
+    const wildArt = game.createSymbolArtContent(game.getSymbolDefinition(TEST_CONFIG.iconSymbolIds.wild));
+
+    expect(game.BADGE_ART_CONFIG.text).toBe("S");
+    expect(game.resolveBadgeArtText(badgeSymbol)).toBe(game.BADGE_ART_CONFIG.text);
+    expect(game.getSymbolArtAttributes(badgeSymbol)).toEqual({
+      [game.BADGE_ART_CONFIG.attributeName]: game.BADGE_ART_CONFIG.text
+    });
+    expect(game.getSymbolArtAttributes(game.getSymbolDefinition(TEST_CONFIG.iconSymbolIds.boots))).toEqual({});
+
+    expect(bootsArt.mode).toBe("svg");
+    expect(bootsArt.markup).toContain('data-symbol-icon="boots"');
+    expect(bootsArt.markup).toContain("slot-icon-boots");
+
+    expect(cactusArt.mode).toBe("svg");
+    expect(cactusArt.markup).toContain('data-symbol-icon="cactus"');
+    expect(cactusArt.markup).toContain(`data-icon-detail="${game.CACTUS_ART_CONFIG.bodyDetailValue}"`);
+    expect(cactusArt.markup.match(new RegExp(`data-icon-detail="${game.CACTUS_ART_CONFIG.armDetailValue}"`, "g"))).toHaveLength(2);
+
+    expect(cowboyArt.mode).toBe("svg");
+    expect(cowboyArt.markup).toContain('data-symbol-icon="cowboy"');
+    expect(cowboyArt.markup).toContain(`data-icon-detail="${game.COWBOY_ART_CONFIG.crownDetailValue}"`);
+    expect(cowboyArt.markup).toContain(`data-icon-detail="${game.COWBOY_ART_CONFIG.faceDetailValue}"`);
+
+    expect(dynamiteArt.mode).toBe("svg");
+    expect(dynamiteArt.markup).toContain('data-symbol-icon="dynamite"');
+    expect(dynamiteArt.markup).toContain('data-icon-detail="spark"');
+
+    expect(wildArt.mode).toBe("svg");
+    expect(wildArt.markup).toContain('data-symbol-icon="wild"');
+    expect(wildArt.markup).not.toContain("<circle");
+  });
+
+  test("falls back safely when an invalid symbol id is requested for rendering", async () => {
+    const fallbackSymbol = game.getSymbolDefinition("__missing__");
+    const fallbackArt = game.createSymbolArtContent(fallbackSymbol);
+
+    expect(fallbackSymbol.id).toBe(game.SYMBOLS[0].id);
+    expect(fallbackArt.mode).toBe("text");
+  });
+
   test("filters spin keyboard shortcuts before using the button path", async () => {
     const inertTarget = { closest: () => null };
     const blockedTarget = {
@@ -547,6 +609,41 @@ test.describe("smoke", () => {
     await page.click("#spinButton");
     await expect(page.locator("#spinButton")).toHaveText("Spin");
     expect(consoleErrors).toEqual([]);
+  });
+
+  test("updated western icons render as inline SVG without losing styling hooks", async ({ page }) => {
+    await gotoGame(page);
+    await page.evaluate(({ board }) => {
+      renderBoard(board, createEmptyFeatureGrid());
+    }, { board: TEST_CONFIG.bonusSpinBoard });
+
+    await expect(page.locator(TEST_CONFIG.iconSelectors.boots)).toHaveCount(1);
+    await expect(page.locator(TEST_CONFIG.iconSelectors.cactus)).toHaveCount(1);
+    await expect(page.locator(TEST_CONFIG.iconSelectors.cowboy)).toHaveCount(1);
+    await expect(page.locator(TEST_CONFIG.iconSelectors.dynamite)).toHaveCount(3);
+    await expect(page.locator(TEST_CONFIG.iconSelectors.wild)).toHaveCount(1);
+    await expect(page.locator(`${TEST_CONFIG.iconSelectors.cactus} [data-icon-detail='cactus-body']`)).toHaveCount(1);
+    await expect(page.locator(`${TEST_CONFIG.iconSelectors.cactus} [data-icon-detail='cactus-arm']`)).toHaveCount(2);
+    await expect(page.locator(`${TEST_CONFIG.iconSelectors.cowboy} [data-icon-detail='hat-crown']`)).toHaveCount(1);
+    await expect(page.locator(`${TEST_CONFIG.iconSelectors.dynamite} [data-icon-detail='spark']`)).toHaveCount(3);
+    await expect(page.locator(`${TEST_CONFIG.iconSelectors.wild} circle`)).toHaveCount(0);
+  });
+
+  test("sheriff badge icon renders a single western S via config-backed badge text", async ({ page }) => {
+    await gotoGame(page);
+    await page.evaluate(({ board }) => {
+      renderBoard(board, createEmptyFeatureGrid());
+    }, { board: TEST_CONFIG.standardWinBoard });
+
+    const badgeArt = page.locator(TEST_CONFIG.iconSelectors.badge).first();
+
+    await expect(badgeArt).toHaveAttribute(game.BADGE_ART_CONFIG.attributeName, game.BADGE_ART_CONFIG.text);
+
+    const badgeOverlayText = await badgeArt.evaluate((node) => (
+      window.getComputedStyle(node, "::after").content.replaceAll("\"", "")
+    ));
+
+    expect(badgeOverlayText).toBe(game.BADGE_ART_CONFIG.text);
   });
 });
 
