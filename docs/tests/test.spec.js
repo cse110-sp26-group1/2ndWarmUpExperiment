@@ -2,9 +2,24 @@ const path = require("path");
 const { test, expect } = require("@playwright/test");
 const game = require("../script.js");
 
+/**
+ * Creates a YYYY-MM-DD date key relative to today in local time.
+ * @param {number} dayOffset
+ * @returns {string}
+ */
+function createRelativeDateKey(dayOffset) {
+  const date = new Date();
+  date.setDate(date.getDate() + dayOffset);
+  return game.createDateKey(date);
+}
+
 const TEST_CONFIG = {
   bet: 10,
   fileUrl: `file://${path.join(__dirname, "..", "index.html")}`,
+  todayDateKey: createRelativeDateKey(0),
+  previousDateKey: createRelativeDateKey(-1),
+  dailyRewardStorageKey: game.STORAGE_KEYS.lastLoginDate,
+  dailyRewardAmount: game.RETENTION_CONFIG.dailyLoginReward.amount,
   bonusSpinBoard: [
     ["dynamite", "badge", "dynamite", "k", "a"],
     ["cowboy", "dynamite", "wild", "q", "10"],
@@ -31,6 +46,26 @@ const TEST_CONFIG = {
     ["a", "k", "q", "j", "10"]
   ]
 };
+
+/**
+ * Opens the game page with a controlled saved login date.
+ * @param {import("@playwright/test").Page} page
+ * @param {string} [lastLoginDateKey]
+ */
+async function gotoGame(page, lastLoginDateKey = TEST_CONFIG.todayDateKey) {
+  await page.addInitScript(({ storageKey, dateKey }) => {
+    try {
+      window.localStorage.setItem(storageKey, dateKey);
+    } catch (_error) {
+      // Ignore storage bootstrapping failures in browser setup.
+    }
+  }, {
+    storageKey: TEST_CONFIG.dailyRewardStorageKey,
+    dateKey: lastLoginDateKey
+  });
+
+  await page.goto(TEST_CONFIG.fileUrl);
+}
 
 /**
  * Applies a board directly through the page's public game functions.
@@ -89,11 +124,64 @@ test.describe("unit", () => {
     expect(prizes).toHaveLength(game.BONUS_CONFIG.crateCount);
     expect(prizeTypes).toEqual(["coins", "coins", "coins", "collect", "free-spins", "multiplier"]);
   });
+
+  test("grants daily rewards only when the saved login date changes", async () => {
+    expect(game.shouldGrantDailyReward(TEST_CONFIG.previousDateKey, TEST_CONFIG.todayDateKey)).toBe(true);
+    expect(game.shouldGrantDailyReward(TEST_CONFIG.todayDateKey, TEST_CONFIG.todayDateKey)).toBe(false);
+    expect(game.shouldGrantDailyReward("invalid-date", TEST_CONFIG.todayDateKey)).toBe(true);
+
+    expect(game.resolveDailyLoginReward(TEST_CONFIG.todayDateKey, TEST_CONFIG.todayDateKey)).toBeNull();
+    expect(game.resolveDailyLoginReward(TEST_CONFIG.previousDateKey, TEST_CONFIG.todayDateKey)).toEqual({
+      reward: {
+        type: game.RETENTION_CONFIG.dailyLoginReward.type,
+        amount: game.RETENTION_CONFIG.dailyLoginReward.amount,
+        source: game.RETENTION_CONFIG.dailyLoginReward.source
+      },
+      lastLoginDateKey: TEST_CONFIG.todayDateKey
+    });
+  });
+
+  test("applies rewards to state and builds inline feedback content", async () => {
+    const slotState = {
+      balance: 1000,
+      freeSpins: 0
+    };
+
+    expect(game.applyRewardToState(slotState, { type: "free-spins", amount: 6, source: "bonus-round" })).toBe(true);
+    expect(game.applyRewardToState(slotState, { type: "balance", amount: 120, source: "daily-login" })).toBe(true);
+    expect(slotState).toEqual({
+      balance: 1120,
+      freeSpins: 6
+    });
+    expect(game.createRewardFeedbackContent({ type: "free-spins", amount: 6, source: "bonus-round" })).toEqual({
+      label: "Bonus Reward",
+      amountText: "+6 free spins",
+      description: "Bonus free spins added to your meter",
+      variant: "free-spins"
+    });
+  });
+});
+
+test.describe("retention", () => {
+  test("awards the daily login reward with inline feedback and updates localStorage", async ({ page }) => {
+    await gotoGame(page, TEST_CONFIG.previousDateKey);
+
+    await expect(page.locator("#rewardFeedback")).toHaveClass(/show/);
+    await expect(page.locator("#rewardFeedbackLabel")).toHaveText("Daily Reward");
+    await expect(page.locator("#rewardFeedbackAmount")).toHaveText(`+${TEST_CONFIG.dailyRewardAmount} free spins`);
+    await expect(page.locator("#rewardFeedbackText")).toHaveText("Added for today's login");
+    await expect(page.locator("#freeSpinsMeter")).toBeVisible();
+    await expect(page.locator("#freeSpinsDisplay")).toContainText(String(TEST_CONFIG.dailyRewardAmount));
+    await expect(page.locator("#statusMessage")).toHaveText("Place your bet and spin");
+
+    const savedLoginDate = await page.evaluate((storageKey) => window.localStorage.getItem(storageKey), TEST_CONFIG.dailyRewardStorageKey);
+    expect(savedLoginDate).toBe(TEST_CONFIG.todayDateKey);
+  });
 });
 
 test.describe("end-to-end", () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto(TEST_CONFIG.fileUrl);
+    await gotoGame(page);
     await page.evaluate(() => {
       state.fastPlayEnabled = true;
       document.getElementById("fastPlayToggle").checked = true;
@@ -116,6 +204,10 @@ test.describe("end-to-end", () => {
 
     await expect(page.locator("#freeSpinsMeter")).toBeVisible();
     await expect(page.locator("#freeSpinsDisplay")).toContainText("8");
+    await expect(page.locator("#rewardFeedback")).toHaveClass(/show/);
+    await expect(page.locator("#rewardFeedbackLabel")).toHaveText("Free Spins Added");
+    await expect(page.locator("#rewardFeedbackAmount")).toHaveText(`+${game.getFreeSpinAward(3)} free spins`);
+    await expect(page.locator("#rewardFeedbackText")).toHaveText("Scatter reward added to your meter");
     await expect(page.locator("#statusMessage")).toContainText("free spins awarded");
   });
 
@@ -139,6 +231,11 @@ test.describe("end-to-end", () => {
     await page.locator(".crate-button").nth(1).click();
     await page.locator(".crate-button").nth(2).click();
     await expect(page.locator("#bonusOverlay")).not.toHaveClass(/show/);
+    await expect(page.locator("#freeSpinsMeter")).toBeVisible();
+    await expect(page.locator("#freeSpinsDisplay")).toContainText(String(game.BONUS_CONFIG.values.bonusFreeSpins));
+    await expect(page.locator("#rewardFeedback")).toHaveClass(/show/);
+    await expect(page.locator("#rewardFeedbackAmount")).toHaveText(`+${game.BONUS_CONFIG.values.bonusFreeSpins} free spins`);
+    await expect(page.locator("#rewardFeedbackText")).toHaveText("Bonus free spins added to your meter");
     await expect(page.locator("#statusMessage")).toContainText("Bonus win");
   });
 
@@ -158,7 +255,7 @@ test.describe("end-to-end", () => {
 
 test.describe("regression", () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto(TEST_CONFIG.fileUrl);
+    await gotoGame(page);
   });
 
   test("preserves fast-play preference via localStorage", async ({ page }) => {

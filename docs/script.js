@@ -56,6 +56,13 @@
  */
 
 /**
+ * @typedef {Object} RewardGrant
+ * @property {"balance" | "free-spins"} type
+ * @property {number} amount
+ * @property {"daily-login" | "spin-award" | "bonus-round"} source
+ */
+
+/**
  * @typedef {Object} SlotState
  * @property {number} balance
  * @property {number} bet
@@ -86,7 +93,8 @@ const SYMBOL_IDS = {
 
 const STORAGE_KEYS = {
   fastPlay: "gunslinger-gold-fast-play",
-  jackpots: "gunslinger-gold-jackpots"
+  jackpots: "gunslinger-gold-jackpots",
+  lastLoginDate: "gunslinger-gold-last-login-date"
 };
 
 const MULTIPLIER_CONFIG = {
@@ -142,6 +150,43 @@ const BONUS_CONFIG = {
     bonusFreeSpins: 6
   }
 };
+
+const RETENTION_CONFIG = {
+  feedbackDurationMs: 3200,
+  dailyLoginReward: {
+    type: "free-spins",
+    amount: 3,
+    source: "daily-login"
+  },
+  feedbackMessages: {
+    defaultLabel: "Reward Added",
+    defaultDescription: "Added to your account",
+    sources: {
+      "daily-login": {
+        label: "Daily Reward",
+        descriptions: {
+          balance: "Added for today's login",
+          "free-spins": "Added for today's login"
+        }
+      },
+      "spin-award": {
+        label: "Free Spins Added",
+        descriptions: {
+          "free-spins": "Scatter reward added to your meter"
+        }
+      },
+      "bonus-round": {
+        label: "Bonus Reward",
+        descriptions: {
+          balance: "Bonus balance added",
+          "free-spins": "Bonus free spins added to your meter"
+        }
+      }
+    }
+  }
+};
+
+const DATE_KEY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
 /** @type {SymbolDefinition[]} */
 const SYMBOLS = [
@@ -199,6 +244,7 @@ const state = {
 let audioContext = null;
 let popupTimeout = 0;
 let bigWinTimeout = 0;
+let rewardFeedbackTimeout = 0;
 let activeSpin = null;
 
 state.board = createBoard();
@@ -269,6 +315,247 @@ function saveJackpotPots(jackpots) {
   } catch (_error) {
     // Ignore storage failures so gameplay continues normally.
   }
+}
+
+/**
+ * Reads a localStorage value for retention features.
+ * @param {string} key
+ * @returns {{available: boolean, value: string | null}}
+ */
+function readStorageValue(key) {
+  try {
+    return {
+      available: true,
+      value: window.localStorage.getItem(key)
+    };
+  } catch (_error) {
+    return {
+      available: false,
+      value: null
+    };
+  }
+}
+
+/**
+ * Writes a localStorage value for retention features.
+ * @param {string} key
+ * @param {string} value
+ * @returns {boolean}
+ */
+function writeStorageValue(key, value) {
+  try {
+    window.localStorage.setItem(key, value);
+    return true;
+  } catch (_error) {
+    return false;
+  }
+}
+
+/**
+ * Formats the current local date into a storage-safe YYYY-MM-DD key.
+ * @param {Date} date
+ * @returns {string}
+ */
+function createDateKey(date) {
+  const year = String(date.getFullYear());
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+}
+
+/**
+ * Checks whether a stored date key matches the supported format.
+ * @param {string | null} value
+ * @returns {boolean}
+ */
+function isValidDateKey(value) {
+  return typeof value === "string" && DATE_KEY_PATTERN.test(value);
+}
+
+/**
+ * Determines whether the player should receive today's daily reward.
+ * @param {string | null} lastLoginDateKey
+ * @param {string} todayDateKey
+ * @returns {boolean}
+ */
+function shouldGrantDailyReward(lastLoginDateKey, todayDateKey) {
+  if (!isValidDateKey(todayDateKey)) {
+    return false;
+  }
+
+  return lastLoginDateKey !== todayDateKey;
+}
+
+/**
+ * Resolves the configured daily login reward if the player is eligible.
+ * @param {string | null} lastLoginDateKey
+ * @param {string} todayDateKey
+ * @returns {{reward: RewardGrant, lastLoginDateKey: string} | null}
+ */
+function resolveDailyLoginReward(lastLoginDateKey, todayDateKey) {
+  if (!shouldGrantDailyReward(lastLoginDateKey, todayDateKey)) {
+    return null;
+  }
+
+  return {
+    reward: { ...RETENTION_CONFIG.dailyLoginReward },
+    lastLoginDateKey: todayDateKey
+  };
+}
+
+/**
+ * Applies a balance or free-spin reward to the provided slot state.
+ * @param {Pick<SlotState, "balance" | "freeSpins">} slotState
+ * @param {RewardGrant} reward
+ * @returns {boolean}
+ */
+function applyRewardToState(slotState, reward) {
+  if (!reward || !Number.isFinite(reward.amount) || reward.amount <= 0) {
+    return false;
+  }
+
+  if (reward.type === "balance") {
+    slotState.balance += reward.amount;
+    return true;
+  }
+
+  if (reward.type === "free-spins") {
+    slotState.freeSpins += reward.amount;
+    return true;
+  }
+
+  return false;
+}
+
+/**
+ * Reverts a reward from the provided slot state when persistence fails.
+ * @param {Pick<SlotState, "balance" | "freeSpins">} slotState
+ * @param {RewardGrant} reward
+ */
+function revertRewardFromState(slotState, reward) {
+  if (reward.type === "balance") {
+    slotState.balance -= reward.amount;
+    return;
+  }
+
+  if (reward.type === "free-spins") {
+    slotState.freeSpins -= reward.amount;
+  }
+}
+
+/**
+ * Creates view-model content for inline reward feedback.
+ * @param {RewardGrant} reward
+ * @returns {{label: string, amountText: string, description: string, variant: "balance" | "free-spins"}}
+ */
+function createRewardFeedbackContent(reward) {
+  const sourceConfig = RETENTION_CONFIG.feedbackMessages.sources[reward.source];
+  const label = sourceConfig ? sourceConfig.label : RETENTION_CONFIG.feedbackMessages.defaultLabel;
+  const description = sourceConfig && sourceConfig.descriptions[reward.type]
+    ? sourceConfig.descriptions[reward.type]
+    : RETENTION_CONFIG.feedbackMessages.defaultDescription;
+  const amountSuffix = reward.type === "balance" ? "balance" : "free spins";
+
+  return {
+    label,
+    amountText: `+${reward.amount} ${amountSuffix}`,
+    description,
+    variant: reward.type
+  };
+}
+
+/**
+ * Hides the inline reward feedback banner.
+ */
+function hideRewardFeedback() {
+  const feedback = document.getElementById("rewardFeedback");
+
+  window.clearTimeout(rewardFeedbackTimeout);
+  if (!feedback) {
+    return;
+  }
+
+  feedback.classList.remove("show", "balance", "free-spins");
+  feedback.hidden = true;
+  feedback.setAttribute("aria-hidden", "true");
+}
+
+/**
+ * Shows non-intrusive inline feedback for balance or free-spin rewards.
+ * @param {RewardGrant} reward
+ */
+function showRewardFeedback(reward) {
+  const feedback = document.getElementById("rewardFeedback");
+  const feedbackLabel = document.getElementById("rewardFeedbackLabel");
+  const feedbackAmount = document.getElementById("rewardFeedbackAmount");
+  const feedbackText = document.getElementById("rewardFeedbackText");
+
+  if (!feedback || !feedbackLabel || !feedbackAmount || !feedbackText) {
+    return;
+  }
+
+  const content = createRewardFeedbackContent(reward);
+
+  window.clearTimeout(rewardFeedbackTimeout);
+  feedbackLabel.textContent = content.label;
+  feedbackAmount.textContent = content.amountText;
+  feedbackText.textContent = content.description;
+  feedback.classList.remove("show", "balance", "free-spins");
+  feedback.classList.add(content.variant);
+  feedback.hidden = false;
+  feedback.setAttribute("aria-hidden", "false");
+
+  window.requestAnimationFrame(() => {
+    feedback.classList.add("show");
+  });
+
+  rewardFeedbackTimeout = window.setTimeout(hideRewardFeedback, RETENTION_CONFIG.feedbackDurationMs);
+}
+
+/**
+ * Shows inline feedback for newly awarded free spins.
+ * @param {number} amount
+ * @param {"daily-login" | "spin-award" | "bonus-round"} source
+ */
+function showFreeSpinRewardFeedback(amount, source) {
+  if (!Number.isFinite(amount) || amount <= 0) {
+    return;
+  }
+
+  showRewardFeedback({
+    type: "free-spins",
+    amount,
+    source
+  });
+}
+
+/**
+ * Grants the configured daily login reward if the saved day differs from today.
+ * @param {Date} [currentDate]
+ * @returns {RewardGrant | null}
+ */
+function grantDailyLoginReward(currentDate = new Date()) {
+  const storageState = readStorageValue(STORAGE_KEYS.lastLoginDate);
+  const todayDateKey = createDateKey(currentDate);
+
+  if (!storageState.available) {
+    return null;
+  }
+
+  const lastLoginDateKey = isValidDateKey(storageState.value) ? storageState.value : null;
+  const rewardResolution = resolveDailyLoginReward(lastLoginDateKey, todayDateKey);
+
+  if (!rewardResolution || !applyRewardToState(state, rewardResolution.reward)) {
+    return null;
+  }
+
+  if (!writeStorageValue(STORAGE_KEYS.lastLoginDate, rewardResolution.lastLoginDateKey)) {
+    revertRewardFromState(state, rewardResolution.reward);
+    return null;
+  }
+
+  return rewardResolution.reward;
 }
 
 /**
@@ -1102,6 +1389,10 @@ function finishBonusRound() {
   setMessage(`Bonus win ${bonusState.totalCoins}${freeSpinText}`);
   showWinPopup(`Bonus Win x${bonusState.bonusMultiplier}`, bonusState.totalCoins);
   updateDisplays();
+
+  if (bonusState.freeSpinsAwarded > 0) {
+    showFreeSpinRewardFeedback(bonusState.freeSpinsAwarded, "bonus-round");
+  }
 }
 
 /**
@@ -1191,6 +1482,10 @@ function settleSpin(board, boardFeatures, usedFreeSpin) {
   }
 
   updateDisplays();
+
+  if (result.freeSpinsAwarded > 0) {
+    showFreeSpinRewardFeedback(result.freeSpinsAwarded, "spin-award");
+  }
 
   if (result.bonusTriggered) {
     startBonusRound();
@@ -1337,6 +1632,7 @@ function initializeGame() {
   try {
     state.fastPlayEnabled = loadFastPlayPreference();
     state.jackpots = loadJackpotPots();
+    const dailyReward = grantDailyLoginReward();
     renderBoard(state.board, state.boardFeatures);
     updateDisplays();
     document.getElementById("fastPlayToggle").checked = state.fastPlayEnabled;
@@ -1376,6 +1672,10 @@ function initializeGame() {
 
       triggerBigWinFeedback(state.bet * 20);
     });
+
+    if (dailyReward) {
+      showRewardFeedback(dailyReward);
+    }
   } catch (error) {
     console.error("Failed to initialize Gunslinger Gold.", error);
     setMessage("Game setup failed. Refresh to retry.");
@@ -1392,19 +1692,26 @@ if (typeof module !== "undefined") {
     FREE_SPIN_CONFIG,
     GAME_LIMITS,
     JACKPOT_CONFIG,
+    RETENTION_CONFIG,
+    STORAGE_KEYS,
     MULTIPLIER_CONFIG,
     PAYLINES,
     SYMBOLS,
+    applyRewardToState,
     clampBet,
     countSymbol,
+    createDateKey,
     createBoardFeatureGrid,
     createBonusPrizes,
     createEmptyFeatureGrid,
+    createRewardFeedbackContent,
     determineJackpotTier,
     evaluateBoard,
     getFreeSpinAward,
     getLeftToRightMatch,
     getLineMultiplier,
-    isWildHorizontalLine
+    isWildHorizontalLine,
+    resolveDailyLoginReward,
+    shouldGrantDailyReward
   };
 }

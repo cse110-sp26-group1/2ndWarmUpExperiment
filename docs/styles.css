@@ -150,6 +150,61 @@ h1 {
   text-shadow: 0 0 14px #f8b23d;
 }
 
+.reward-feedback {
+  display: grid;
+  grid-template-columns: auto auto auto;
+  gap: 12px;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  margin: 0 auto 14px;
+  padding: 8px 14px;
+  border: 1px solid rgba(255, 219, 126, 0.26);
+  border-radius: var(--frame-radius);
+  background: rgba(32, 14, 8, 0.58);
+  box-shadow: inset 0 0 14px rgba(0, 0, 0, 0.28);
+  color: #fff0bd;
+  opacity: 0;
+  transform: translateY(-4px);
+  transition: opacity 180ms ease, transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
+}
+
+.reward-feedback.show {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.reward-feedback.balance {
+  border-color: rgba(255, 220, 133, 0.46);
+}
+
+.reward-feedback.free-spins {
+  border-color: rgba(255, 233, 148, 0.7);
+  box-shadow:
+    0 0 18px rgba(255, 222, 106, 0.18),
+    inset 0 0 18px rgba(255, 235, 156, 0.12);
+}
+
+.reward-feedback-label {
+  color: #e9c98b;
+  font-size: 0.74rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.reward-feedback-amount {
+  color: var(--gold-bright);
+  font-size: 1.08rem;
+  line-height: 1;
+}
+
+.reward-feedback-text {
+  color: #fff0bd;
+  font-size: 0.92rem;
+  font-weight: 700;
+}
+
 .jackpot-strip {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -896,6 +951,11 @@ h1 {
   .bonus-crates,
   .control-panel {
     grid-template-columns: 1fr;
+  }
+
+  .reward-feedback {
+    grid-template-columns: 1fr;
+    text-align: center;
   }
 }
 
