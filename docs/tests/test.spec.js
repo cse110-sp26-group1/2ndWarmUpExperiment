@@ -245,13 +245,12 @@ function createSeededBoard(random) {
  */
 async function prepareNearMissSpin(page, options = {}) {
   await page.evaluate(({ board, fastPlay, holdMs, slideMs }) => {
-    state.fastPlayEnabled = Boolean(fastPlay);
+    applySpinSpeed(fastPlay ? "skip" : "normal");
     state.balance = 1000;
     state.bet = 10;
     state.freeSpins = 0;
     state.isBonusActive = false;
     state.bonusRound = null;
-    document.getElementById("fastPlayToggle").checked = state.fastPlayEnabled;
     NEAR_MISS_CONFIG.enabled = true;
     NEAR_MISS_CONFIG.probability = 1;
     NEAR_MISS_CONFIG.timing.teaseHoldMs = holdMs;
@@ -1159,8 +1158,7 @@ test.describe("end-to-end", () => {
   test.beforeEach(async ({ page }) => {
     await gotoGame(page);
     await page.evaluate(() => {
-      state.fastPlayEnabled = true;
-      document.getElementById("fastPlayToggle").checked = true;
+      applySpinSpeed("skip");
       state.balance = 1000;
       state.bet = 10;
       state.freeSpins = 0;
@@ -1367,18 +1365,17 @@ test.describe("regression", () => {
     await gotoGame(page);
   });
 
-  test("preserves fast-play preference via localStorage", async ({ page }) => {
+  test("preserves spin speed preference via localStorage", async ({ page }) => {
     await page.click("#settingsButton");
-    await page.check("#fastPlayToggle");
+    await page.click("#spinSpeedSkip");
     await page.reload();
 
-    await expect(page.locator("#fastPlayToggle")).toBeChecked();
+    await expect(page.locator("#spinSpeedSkip")).toHaveAttribute("aria-pressed", "true");
   });
 
   test("preserves skip-to-finish behavior while spinning", async ({ page }) => {
     await page.evaluate(() => {
-      state.fastPlayEnabled = false;
-      document.getElementById("fastPlayToggle").checked = false;
+      applySpinSpeed("normal");
       updateDisplays();
     });
 
@@ -1390,8 +1387,7 @@ test.describe("regression", () => {
 
   test("skip-to-finish keeps payline drawing clipped to the evaluated match", async ({ page }) => {
     await page.evaluate(({ board }) => {
-      state.fastPlayEnabled = false;
-      document.getElementById("fastPlayToggle").checked = false;
+      applySpinSpeed("normal");
       state.balance = 1000;
       state.bet = 10;
       state.freeSpins = 0;
@@ -1427,8 +1423,7 @@ test.describe("keyboard spin shortcut", () => {
   test.beforeEach(async ({ page }) => {
     await gotoGame(page);
     await page.evaluate(() => {
-      state.fastPlayEnabled = false;
-      document.getElementById("fastPlayToggle").checked = false;
+      applySpinSpeed("normal");
       state.balance = 1000;
       state.bet = 10;
       state.freeSpins = 0;
@@ -1481,8 +1476,7 @@ test.describe("keyboard spin shortcut", () => {
 
   test("holding Space does not trigger repeated spin button clicks", async ({ page }) => {
     await page.evaluate(() => {
-      state.fastPlayEnabled = true;
-      document.getElementById("fastPlayToggle").checked = true;
+      applySpinSpeed("skip");
       updateDisplays();
     });
 
