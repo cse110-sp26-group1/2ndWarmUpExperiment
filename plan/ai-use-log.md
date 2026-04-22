@@ -918,3 +918,44 @@ If Yes:
 - Why manual editing was necessary:
 - Whether the fix introduced new issues or resolved the problem:
 ---
+# Prompt 12 Entry
+## Prompt Used
+Correct the slot machine icons used for:
+- “Wild” there is an odd white circle present for wild please remove
+- “Dynamite”: reference unknown.jpg
+
+- “Boots” : reference images.jpg
+￼
+Please maintain the current western style of the other icons
+Requirements:
+- Add unit tests
+- Add end-to-end tests using Playwright
+- Preserve all existing functionality
+- Do not introduce anything beyond these changes
+- Add JSDoc documentation, linting, no hardcoded values (use config objects), modular structure, and error handling
+- Write all tests in test.spec.js and do not delete any tests
+
+## Result
+### List what it got correct:
+- Successfully changed the dynamite icon to something more accurate, boots appear to be more boot like, removed the white dot on "Wild"
+
+### List what it didn't get correct:
+- None
+### List any unexpected behavior or errors it introduced:
+- The white dot is removed but changed the icon entirely, to a "Wild" card, it fits the theme though
+- The cowboy boots appear a bit odd but it is improved
+
+### Manual Edits (Only if LLM failed after attempts)
+- [x] None
+- [ ] Yes
+---
+# Prompt 13 Entry
+## Prompt Used
+Please fix the sheriff badge used in the slot machine icons to only display "S" instead of "SH" Please maintain the current western style of the other icons
+Requirements:
+- Add unit tests
+- Add end-to-end tests using Playwright
+- Preserve all existing functionality
+- Do not introduce anything beyond these changes
+- Add JSDoc documentation, linting, no hardcoded values (use config objects), modular structure, and error handling
+- Write all tests in test.spec.js and do not delete any tests

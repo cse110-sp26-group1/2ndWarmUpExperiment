@@ -20,6 +20,18 @@ const TEST_CONFIG = {
   previousDateKey: createRelativeDateKey(-1),
   dailyRewardStorageKey: game.STORAGE_KEYS.lastLoginDate,
   dailyRewardAmount: game.RETENTION_CONFIG.dailyLoginReward.amount,
+  iconSymbolIds: {
+    badge: "badge",
+    boots: "boots",
+    dynamite: game.SYMBOL_IDS ? game.SYMBOL_IDS.dynamite : "dynamite",
+    wild: game.SYMBOL_IDS ? game.SYMBOL_IDS.wild : "wild"
+  },
+  iconSelectors: {
+    badge: "[data-symbol='badge'] .symbol-art",
+    boots: "[data-symbol='boots'] [data-symbol-icon='boots']",
+    dynamite: "[data-symbol='dynamite'] [data-symbol-icon='dynamite']",
+    wild: "[data-symbol='wild'] [data-symbol-icon='wild']"
+  },
   bonusSpinBoard: [
     ["dynamite", "badge", "dynamite", "k", "a"],
     ["cowboy", "dynamite", "wild", "q", "10"],
@@ -402,6 +414,40 @@ test.describe("unit", () => {
     });
   });
 
+  test("renders corrected SVG icon markup for western symbol art", async () => {
+    const badgeSymbol = game.getSymbolDefinition(TEST_CONFIG.iconSymbolIds.badge);
+    const bootsArt = game.createSymbolArtContent(game.getSymbolDefinition(TEST_CONFIG.iconSymbolIds.boots));
+    const dynamiteArt = game.createSymbolArtContent(game.getSymbolDefinition(TEST_CONFIG.iconSymbolIds.dynamite));
+    const wildArt = game.createSymbolArtContent(game.getSymbolDefinition(TEST_CONFIG.iconSymbolIds.wild));
+
+    expect(game.BADGE_ART_CONFIG.text).toBe("S");
+    expect(game.resolveBadgeArtText(badgeSymbol)).toBe(game.BADGE_ART_CONFIG.text);
+    expect(game.getSymbolArtAttributes(badgeSymbol)).toEqual({
+      [game.BADGE_ART_CONFIG.attributeName]: game.BADGE_ART_CONFIG.text
+    });
+    expect(game.getSymbolArtAttributes(game.getSymbolDefinition(TEST_CONFIG.iconSymbolIds.boots))).toEqual({});
+
+    expect(bootsArt.mode).toBe("svg");
+    expect(bootsArt.markup).toContain('data-symbol-icon="boots"');
+    expect(bootsArt.markup).toContain("slot-icon-boots");
+
+    expect(dynamiteArt.mode).toBe("svg");
+    expect(dynamiteArt.markup).toContain('data-symbol-icon="dynamite"');
+    expect(dynamiteArt.markup).toContain('data-icon-detail="spark"');
+
+    expect(wildArt.mode).toBe("svg");
+    expect(wildArt.markup).toContain('data-symbol-icon="wild"');
+    expect(wildArt.markup).not.toContain("<circle");
+  });
+
+  test("falls back safely when an invalid symbol id is requested for rendering", async () => {
+    const fallbackSymbol = game.getSymbolDefinition("__missing__");
+    const fallbackArt = game.createSymbolArtContent(fallbackSymbol);
+
+    expect(fallbackSymbol.id).toBe(game.SYMBOLS[0].id);
+    expect(fallbackArt.mode).toBe("text");
+  });
+
   test("filters spin keyboard shortcuts before using the button path", async () => {
     const inertTarget = { closest: () => null };
     const blockedTarget = {
@@ -547,6 +593,36 @@ test.describe("smoke", () => {
     await page.click("#spinButton");
     await expect(page.locator("#spinButton")).toHaveText("Spin");
     expect(consoleErrors).toEqual([]);
+  });
+
+  test("updated boots, dynamite, and wild icons render as inline SVG without losing western styling hooks", async ({ page }) => {
+    await gotoGame(page);
+    await page.evaluate(({ board }) => {
+      renderBoard(board, createEmptyFeatureGrid());
+    }, { board: TEST_CONFIG.bonusSpinBoard });
+
+    await expect(page.locator(TEST_CONFIG.iconSelectors.boots)).toHaveCount(1);
+    await expect(page.locator(TEST_CONFIG.iconSelectors.dynamite)).toHaveCount(3);
+    await expect(page.locator(TEST_CONFIG.iconSelectors.wild)).toHaveCount(1);
+    await expect(page.locator(`${TEST_CONFIG.iconSelectors.dynamite} [data-icon-detail='spark']`)).toHaveCount(3);
+    await expect(page.locator(`${TEST_CONFIG.iconSelectors.wild} circle`)).toHaveCount(0);
+  });
+
+  test("sheriff badge icon renders a single western S via config-backed badge text", async ({ page }) => {
+    await gotoGame(page);
+    await page.evaluate(({ board }) => {
+      renderBoard(board, createEmptyFeatureGrid());
+    }, { board: TEST_CONFIG.standardWinBoard });
+
+    const badgeArt = page.locator(TEST_CONFIG.iconSelectors.badge).first();
+
+    await expect(badgeArt).toHaveAttribute(game.BADGE_ART_CONFIG.attributeName, game.BADGE_ART_CONFIG.text);
+
+    const badgeOverlayText = await badgeArt.evaluate((node) => (
+      window.getComputedStyle(node, "::after").content.replaceAll("\"", "")
+    ));
+
+    expect(badgeOverlayText).toBe(game.BADGE_ART_CONFIG.text);
   });
 });
 

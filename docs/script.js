@@ -341,6 +341,44 @@ const PAYLINE_RENDER_CONFIG = {
   reelWindowId: "reelWindow"
 };
 
+const BADGE_ART_CONFIG = Object.freeze({
+  attributeName: "data-badge-text",
+  symbolId: "badge",
+  text: "S"
+});
+
+/**
+ * @typedef {Object} SymbolArtConfig
+ * @property {string} viewBox
+ * @property {string} className
+ * @property {string} title
+ */
+
+/**
+ * @typedef {Object} SymbolArtContent
+ * @property {string} markup
+ * @property {"svg" | "text"} mode
+ */
+
+/** @type {Record<string, SymbolArtConfig>} */
+const SYMBOL_ART_CONFIG = {
+  boots: {
+    viewBox: "0 0 96 80",
+    className: "slot-icon slot-icon-boots",
+    title: "Cowboy boots"
+  },
+  [SYMBOL_IDS.dynamite]: {
+    viewBox: "0 0 96 80",
+    className: "slot-icon slot-icon-dynamite",
+    title: "Dynamite"
+  },
+  [SYMBOL_IDS.wild]: {
+    viewBox: "0 0 96 80",
+    className: "slot-icon slot-icon-wild",
+    title: "Wild"
+  }
+};
+
 /** @type {Record<string, SymbolDefinition>} */
 const SYMBOL_MAP = SYMBOLS.reduce((map, symbol) => {
   map[symbol.id] = symbol;
@@ -382,6 +420,202 @@ state.boardFeatures = createBoardFeatureGrid(state.board);
  */
 function buildWeightedSymbolIds(symbols) {
   return symbols.flatMap((symbol) => Array.from({ length: symbol.weight }, () => symbol.id));
+}
+
+/**
+ * Escapes text content before it is inserted into HTML.
+ * @param {string} value
+ * @returns {string}
+ */
+function escapeHtml(value) {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll("\"", "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+/**
+ * Resolves a symbol definition while guarding against invalid ids.
+ * @param {string} symbolId
+ * @returns {SymbolDefinition}
+ */
+function getSymbolDefinition(symbolId) {
+  const fallbackSymbol = SYMBOLS[0];
+
+  if (typeof symbolId !== "string") {
+    console.warn("Expected a string symbol id while rendering.", symbolId);
+    return fallbackSymbol;
+  }
+
+  if (!SYMBOL_MAP[symbolId]) {
+    console.warn(`Unknown symbol id "${symbolId}" while rendering. Falling back to ${fallbackSymbol.id}.`);
+    return fallbackSymbol;
+  }
+
+  return SYMBOL_MAP[symbolId];
+}
+
+/**
+ * Wraps SVG symbol markup in a consistent inline SVG shell.
+ * @param {SymbolArtConfig} config
+ * @param {string} bodyMarkup
+ * @param {string} symbolId
+ * @returns {string}
+ */
+function createInlineSymbolSvg(config, bodyMarkup, symbolId) {
+  return `
+    <svg class="${escapeHtml(config.className)}" viewBox="${escapeHtml(config.viewBox)}" role="img" aria-label="${escapeHtml(config.title)}" data-symbol-icon="${escapeHtml(symbolId)}" xmlns="http://www.w3.org/2000/svg">
+      ${bodyMarkup}
+    </svg>
+  `;
+}
+
+/**
+ * Builds the wild sign art.
+ * @param {SymbolArtConfig} config
+ * @returns {string}
+ */
+function createWildSymbolArt(config) {
+  return createInlineSymbolSvg(config, `
+    <path d="M16 18 L78 12 L84 22 L82 60 L18 66 L12 56 L14 24 Z" fill="#5a2d18" stroke="#c38a43" stroke-width="3.5" stroke-linejoin="round" />
+    <path d="M20 22 L76 18 L78 56 L20 60 Z" fill="#733a1f" opacity="0.55" />
+    <path d="M23 24 L72 20" stroke="#b87b43" stroke-width="2.5" stroke-linecap="round" opacity="0.5" />
+    <path d="M25 51 C39 44 52 44 69 48" stroke="#a86433" stroke-width="2.4" stroke-linecap="round" fill="none" opacity="0.62" />
+    <path d="M19 18 L28 10 L36 18" fill="#d3a055" stroke="#81501f" stroke-width="2" stroke-linejoin="round" />
+    <path d="M68 13 L76 6 L84 14" fill="#d3a055" stroke="#81501f" stroke-width="2" stroke-linejoin="round" />
+    <text x="48" y="45" text-anchor="middle" fill="#ffeaa3" font-size="18" font-weight="900" font-family="Georgia, serif" letter-spacing="2.2">WILD</text>
+  `, SYMBOL_IDS.wild);
+}
+
+/**
+ * Builds the dynamite art from the provided western reference.
+ * @param {SymbolArtConfig} config
+ * @returns {string}
+ */
+function createDynamiteSymbolArt(config) {
+  return createInlineSymbolSvg(config, `
+    <g transform="translate(6 2)">
+      <path d="M18 26 C17 14 24 10 31 12 C39 14 44 20 47 27" fill="none" stroke="#2d2622" stroke-width="5" stroke-linecap="round" />
+      <path d="M18 26 C17 14 24 10 31 12 C39 14 44 20 47 27" fill="none" stroke="#cfd2d6" stroke-width="2.6" stroke-linecap="round" />
+      <path d="M4 26 L9 20 L11 25 L18 22 L16 29 L23 32 L15 35 L16 42 L10 37 L5 42 L5 35 L-2 34 L4 29 L-1 24 Z" fill="#ffe252" stroke="#62310c" stroke-width="2" stroke-linejoin="round" data-icon-detail="spark" />
+      <path d="M34 12 L55 10 C59 10 62 12 64 15 L74 59 C75 64 71 69 66 69 L48 70 C43 70 39 67 38 62 L28 19 C27 15 30 12 34 12 Z" fill="#d81a12" stroke="#5c0d0d" stroke-width="2.4" stroke-linejoin="round" />
+      <ellipse cx="45" cy="15" rx="11" ry="5" fill="#ff412c" stroke="#6f0f0f" stroke-width="2" />
+      <path d="M37 18 L55 66" stroke="#ff8b79" stroke-opacity="0.32" stroke-width="4" stroke-linecap="round" />
+    </g>
+  `, SYMBOL_IDS.dynamite);
+}
+
+/**
+ * Builds the cowboy boots art from the provided western reference.
+ * @param {SymbolArtConfig} config
+ * @returns {string}
+ */
+function createBootsSymbolArt(config) {
+  return createInlineSymbolSvg(config, `
+    <g transform="translate(2 0)">
+      <path d="M18 13 C18 9 21 7 24 7 L35 7 C41 7 45 11 45 17 L45 41 C45 50 38 56 29 56 L21 56 C16 56 12 52 12 47 L12 18 C12 16 14 13 18 13 Z" fill="#93603b" stroke="#4c2c1b" stroke-width="2.2" />
+      <path d="M49 11 C49 8 52 6 56 6 L68 6 C74 6 78 10 78 16 L78 45 C78 51 73 56 67 56 L56 56 C49 56 44 51 44 44 L44 16 C44 13 46 11 49 11 Z" fill="#93603b" stroke="#4c2c1b" stroke-width="2.2" />
+      <path d="M14 49 C22 47 30 49 37 54 C42 58 44 61 49 61 L60 61 C63 61 65 63 64 66 C61 74 53 77 40 75 L20 73 C13 72 8 68 8 62 C8 57 10 52 14 49 Z" fill="#5c3925" stroke="#3f2417" stroke-width="2.2" />
+      <path d="M40 54 C49 48 57 47 67 50 C74 52 79 56 85 57 C89 58 90 62 87 65 C81 70 70 72 55 71 C48 70 43 67 39 62 Z" fill="#8b5838" stroke="#4c2c1b" stroke-width="2.2" />
+      <path d="M16 16 L39 16 L39 44 L16 44 Z" fill="#b67d53" opacity="0.14" />
+      <path d="M48 14 L72 14 L72 44 L48 44 Z" fill="#b67d53" opacity="0.14" />
+      <path d="M11 64 L24 64 L20 74 L7 74 Z" fill="#654130" stroke="#3f2417" stroke-width="2" />
+      <path d="M10 62 L26 62" stroke="#c69a6b" stroke-width="1.6" stroke-linecap="round" opacity="0.45" />
+      <path d="M19 19 C23 16 27 16 31 20" fill="none" stroke="#d9a06b" stroke-width="1.8" stroke-linecap="round" opacity="0.8" />
+      <path d="M18 27 C22 24 26 24 30 28" fill="none" stroke="#d9a06b" stroke-width="1.8" stroke-linecap="round" opacity="0.75" />
+      <path d="M52 17 C56 14 61 14 65 18" fill="none" stroke="#d9a06b" stroke-width="1.8" stroke-linecap="round" opacity="0.8" />
+      <path d="M51 26 C56 23 61 23 66 27" fill="none" stroke="#d9a06b" stroke-width="1.8" stroke-linecap="round" opacity="0.75" />
+      <path d="M48 53 C55 48 64 47 73 50" fill="none" stroke="#3f2417" stroke-width="2" stroke-linecap="round" opacity="0.68" />
+      <path d="M47 58 C55 53 65 52 75 55" fill="none" stroke="#3f2417" stroke-width="2" stroke-linecap="round" opacity="0.68" />
+    </g>
+  `, "boots");
+}
+
+/** @type {Record<string, (config: SymbolArtConfig) => string>} */
+const SYMBOL_ART_BUILDERS = {
+  boots: createBootsSymbolArt,
+  [SYMBOL_IDS.dynamite]: createDynamiteSymbolArt,
+  [SYMBOL_IDS.wild]: createWildSymbolArt
+};
+
+/**
+ * Builds the markup used inside a symbol art container.
+ * @param {SymbolDefinition} symbol
+ * @returns {{markup: string, mode: "svg" | "text"}}
+ */
+function createSymbolArtContent(symbol) {
+  const builder = SYMBOL_ART_BUILDERS[symbol.id];
+
+  if (!builder) {
+    const artText = symbol.className === "symbol-letter" || symbol.className === "symbol-number" ? symbol.label : "";
+    return {
+      markup: escapeHtml(artText),
+      mode: "text"
+    };
+  }
+
+  try {
+    return {
+      markup: builder(SYMBOL_ART_CONFIG[symbol.id]),
+      mode: "svg"
+    };
+  } catch (error) {
+    console.warn(`Failed to build art for symbol "${symbol.id}".`, error);
+    return {
+      markup: escapeHtml(symbol.label),
+      mode: "text"
+    };
+  }
+}
+
+/**
+ * Resolves the visible badge text for sheriff symbol art.
+ * @param {SymbolDefinition} symbol
+ * @returns {string}
+ */
+function resolveBadgeArtText(symbol) {
+  if (symbol.id !== BADGE_ART_CONFIG.symbolId) {
+    return "";
+  }
+
+  if (typeof BADGE_ART_CONFIG.text === "string" && BADGE_ART_CONFIG.text.trim().length === 1) {
+    return BADGE_ART_CONFIG.text.trim();
+  }
+
+  const fallbackText = typeof symbol.label === "string" ? symbol.label.trim().charAt(0).toUpperCase() : "";
+  console.warn(`Invalid badge art text configured for symbol "${symbol.id}". Falling back to label initial.`);
+  return fallbackText;
+}
+
+/**
+ * Builds extra HTML attributes for a symbol art container.
+ * @param {SymbolDefinition} symbol
+ * @returns {Record<string, string>}
+ */
+function getSymbolArtAttributes(symbol) {
+  const badgeText = resolveBadgeArtText(symbol);
+
+  if (!badgeText) {
+    return {};
+  }
+
+  return {
+    [BADGE_ART_CONFIG.attributeName]: badgeText
+  };
+}
+
+/**
+ * Serializes HTML attributes for insertion into inline markup.
+ * @param {Record<string, string>} attributes
+ * @returns {string}
+ */
+function serializeHtmlAttributes(attributes) {
+  return Object.entries(attributes)
+    .filter(([, value]) => typeof value === "string" && value.length > 0)
+    .map(([name, value]) => `${escapeHtml(name)}="${escapeHtml(value)}"`)
+    .join(" ");
 }
 
 /**
@@ -1281,10 +1515,12 @@ function awardJackpot(tier) {
  * @returns {HTMLDivElement}
  */
 function createSymbolCell(symbolId, reel, row, feature = null) {
-  const symbol = SYMBOL_MAP[symbolId];
+  const symbol = getSymbolDefinition(symbolId);
   const cell = document.createElement("div");
-  const artText = symbol.className === "symbol-letter" || symbol.className === "symbol-number" ? symbol.label : "";
   const multiplierBadge = feature && feature.multiplier > 1 ? `<span class="multiplier-badge">x${feature.multiplier}</span>` : "";
+  const art = createSymbolArtContent(symbol);
+  const artAttributes = serializeHtmlAttributes(getSymbolArtAttributes(symbol));
+  const artAttributeMarkup = artAttributes ? ` ${artAttributes}` : "";
 
   cell.className = `symbol-cell ${symbol.className}`;
   cell.dataset.reel = String(reel);
@@ -1293,7 +1529,7 @@ function createSymbolCell(symbolId, reel, row, feature = null) {
   cell.innerHTML = `
     ${multiplierBadge}
     <div class="symbol-stack">
-      <span class="symbol-art" aria-hidden="true">${artText}</span>
+      <span class="symbol-art" data-art-mode="${art.mode}" aria-hidden="true"${artAttributeMarkup}>${art.markup}</span>
       <span class="symbol-label">${symbol.label}</span>
     </div>
   `;
@@ -2580,8 +2816,10 @@ if (typeof module !== "undefined") {
     STORAGE_KEYS,
     MULTIPLIER_CONFIG,
     NEAR_MISS_CONFIG,
+    BADGE_ART_CONFIG,
     PAYLINES,
     PAYLINE_RENDER_CONFIG,
+    SYMBOL_ART_CONFIG,
     SYMBOLS,
     applyRewardToState,
     clampBet,
@@ -2589,12 +2827,20 @@ if (typeof module !== "undefined") {
     createDateKey,
     createBoardFeatureGrid,
     createBonusPrizes,
+    createBootsSymbolArt,
     createEmptyFeatureGrid,
     createMatchedPositions,
     createNearMissPlanForPattern,
     createRewardFeedbackContent,
+    createDynamiteSymbolArt,
+    createInlineSymbolSvg,
+    createSymbolArtContent,
+    createWildSymbolArt,
     determineJackpotTier,
+    escapeHtml,
     evaluateBoard,
+    getSymbolDefinition,
+    getSymbolArtAttributes,
     getFreeSpinAward,
     getLeftToRightMatch,
     getLineMultiplier,
@@ -2605,6 +2851,8 @@ if (typeof module !== "undefined") {
     isValidWinPosition,
     isWildHorizontalLine,
     resolveDailyLoginReward,
+    resolveBadgeArtText,
+    serializeHtmlAttributes,
     selectNearMissPlan,
     shouldHandleSpinShortcut,
     shouldGrantDailyReward,
