@@ -265,3 +265,47 @@ If Yes:
 - Whether the fix introduced new issues or resolved the problem:
 
 ---
+
+---
+# Prompt 3 Entry
+
+## Prompt Used
+preserve all existing functionality"
+"implement a specialized 'Big Win' feedback system triggered when a player wins 20x their current bet or more:
+
+Display a prominent 'Big Win' pop-up message on the screen.
+
+Play a different, high-energy celebratory sound effect specifically to notify the user of this big win.
+
+Add a visual animation across the screen, such as falling gold coins or a dynamic screen-wide celebration effect, to celebrate the big win achievement.
+
+Add a developer 'test feature' to verify these visuals: create a keyboard shortcut (the 'J' key) that immediately triggers the Big Win feedback loop (animation, sound, and pop-up) for testing purposes."
+"please don't introduce anything additional beyond these changes"
+
+# Result
+## List what it got correct:
+- Coins fall from big win
+  - Displays big win pop up message
+  - Sound for big win is different
+  - J button correctly activates big win animation without actually changing current balance
+
+## List what it didn't get correct:
+- Quality of coins (minimal coins falling)
+- Big win message is very small still
+- Big win message pops up in a structural box, could pop out more
+
+
+## List any unexpected behavior or errors it introduced or any functionality it may have removed:
+
+## Manual Edits (Only if LLM failed after attempts)
+
+- [x] None
+- [ ] Yes
+
+If Yes:
+
+- What was manually changed:
+- Why manual editing was necessary:
+- Whether the fix introduced new issues or resolved the problem:
+
+---
