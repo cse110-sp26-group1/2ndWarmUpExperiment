@@ -498,19 +498,92 @@ h1 {
 }
 
 .bonus-panel {
-  width: min(640px, 100%);
+  width: min(720px, 100%);
+  padding: 24px;
+  border-color: rgba(255, 224, 137, 0.58);
+  background:
+    linear-gradient(180deg, rgba(118, 59, 24, 0.98), rgba(30, 13, 7, 0.98)),
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.04) 0 16px, transparent 16px 32px);
+  box-shadow:
+    0 24px 56px rgba(12, 5, 2, 0.56),
+    inset 0 0 0 1px rgba(255, 232, 156, 0.14),
+    inset 0 0 36px rgba(255, 199, 72, 0.1);
+}
+
+.bonus-title {
+  display: grid;
+  gap: 4px;
+  margin: 0 0 18px;
+  color: var(--gold-bright);
+  font-size: clamp(1.8rem, 4vw, 2.6rem);
+  line-height: 0.98;
+  text-align: center;
+  text-shadow:
+    0 3px 0 #5d2e14,
+    0 0 18px rgba(255, 215, 94, 0.54);
+}
+
+.bonus-title-kicker {
+  color: #f3c97a;
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-shadow: 0 2px 0 #321509;
+  text-transform: uppercase;
 }
 
 .bonus-status {
-  margin: 0 0 16px;
-  color: #fff0bd;
-  font-weight: 700;
+  margin: 0 0 18px;
+}
+
+.bonus-status-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.bonus-stat {
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid rgba(255, 223, 137, 0.28);
+  border-radius: 8px;
+  background:
+    linear-gradient(180deg, rgba(83, 37, 16, 0.94), rgba(42, 18, 9, 0.94));
+  box-shadow:
+    inset 0 0 12px rgba(0, 0, 0, 0.24),
+    0 4px 12px rgba(12, 5, 2, 0.18);
+  text-align: center;
+}
+
+.bonus-stat-label,
+.crate-topline,
+.crate-meta {
+  display: block;
+  color: #dfc59c;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.bonus-stat-value {
+  display: block;
+  margin-top: 4px;
+  color: #fff2b2;
+  font-size: 1.24rem;
+  line-height: 1;
+  text-shadow: 0 2px 0 #4b230e;
+}
+
+.bonus-stat--coins .bonus-stat-value,
+.bonus-stat--multiplier .bonus-stat-value {
+  color: var(--gold-bright);
 }
 
 .bonus-crates {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
+  gap: 14px;
 }
 
 .big-win-celebration.show {
@@ -1027,30 +1100,162 @@ h1 {
 }
 
 .crate-button {
-  min-height: 118px;
-  padding: 14px;
+  position: relative;
+  min-height: 178px;
+  padding: 12px;
+  overflow: hidden;
   border: 2px solid rgba(255, 220, 133, 0.35);
-  border-radius: 10px;
+  border-radius: 8px;
   background:
-    linear-gradient(180deg, rgba(127, 69, 28, 0.96), rgba(50, 24, 12, 0.96)),
-    repeating-linear-gradient(90deg, transparent 0 18px, rgba(0, 0, 0, 0.08) 18px 19px);
+    linear-gradient(180deg, rgba(132, 73, 31, 0.98), rgba(47, 22, 11, 0.98)),
+    repeating-linear-gradient(90deg, transparent 0 18px, rgba(0, 0, 0, 0.1) 18px 19px);
   color: #fff1bf;
   cursor: pointer;
   font-weight: 800;
   text-transform: uppercase;
-  box-shadow: inset 0 0 18px rgba(0, 0, 0, 0.28);
+  box-shadow:
+    inset 0 0 18px rgba(0, 0, 0, 0.32),
+    0 5px 0 rgba(38, 17, 8, 0.82);
+  transition: border-color 160ms ease, box-shadow 160ms ease, filter 160ms ease, transform 160ms ease;
 }
 
-.crate-button:hover:not(:disabled) {
+.crate-button::before,
+.crate-button::after {
+  position: absolute;
+  content: "";
+  pointer-events: none;
+}
+
+.crate-button::before {
+  inset: 12px;
+  border: 1px solid rgba(255, 230, 158, 0.18);
+  border-radius: 6px;
+}
+
+.crate-button::after {
+  top: 0;
+  left: -60%;
+  width: 42%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 239, 180, 0.28), transparent);
+  opacity: 0;
+  transform: skewX(-18deg);
+  transition: left 220ms ease, opacity 180ms ease;
+}
+
+.crate-content {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  height: 100%;
+  min-height: 150px;
+  align-content: center;
+  justify-items: center;
+  gap: 7px;
+  text-align: center;
+}
+
+.bonus-icon {
+  display: grid;
+  width: 58px;
+  height: 58px;
+  place-items: center;
+  filter: drop-shadow(0 4px 4px rgba(20, 7, 2, 0.42));
+}
+
+.bonus-icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+.bonus-icon--crate {
+  width: 66px;
+  height: 66px;
+}
+
+.crate-title {
+  color: #fff5ce;
+  font-size: 0.98rem;
+  line-height: 1.05;
+  text-shadow: 0 2px 0 #321509;
+}
+
+.crate-value {
+  display: block;
+  max-width: 100%;
+  color: var(--gold-bright);
+  font-size: 1.25rem;
+  line-height: 1;
+  overflow-wrap: anywhere;
+  text-shadow:
+    0 2px 0 #54270f,
+    0 0 12px rgba(255, 221, 91, 0.42);
+}
+
+.crate-meta {
+  color: #e6c895;
+  font-size: 0.68rem;
+}
+
+.crate-button:hover:not(:disabled),
+.crate-button--hover:not(:disabled),
+.crate-button:focus-visible,
+.crate-button--focus:not(:disabled) {
+  border-color: rgba(255, 237, 168, 0.78);
   transform: translateY(-2px);
-  box-shadow: 0 10px 22px rgba(16, 7, 2, 0.28), inset 0 0 18px rgba(0, 0, 0, 0.28);
+  box-shadow:
+    0 11px 24px rgba(16, 7, 2, 0.34),
+    0 0 18px rgba(255, 213, 78, 0.24),
+    inset 0 0 18px rgba(0, 0, 0, 0.28);
 }
 
+.crate-button:hover:not(:disabled)::after,
+.crate-button--hover:not(:disabled)::after,
+.crate-button:focus-visible::after,
+.crate-button--focus:not(:disabled)::after {
+  left: 118%;
+  opacity: 1;
+}
+
+.crate-button:focus-visible {
+  outline: 2px solid var(--gold-bright);
+  outline-offset: 3px;
+}
+
+.crate-button--selected,
+.crate-button--opened {
+  border-color: rgba(255, 238, 168, 0.86);
+  filter: brightness(1.08);
+}
+
+.crate-button--revealed,
+.crate-button--disabled,
 .crate-button.revealed,
 .crate-button:disabled {
   cursor: default;
   color: #ffe7a1;
-  background: linear-gradient(180deg, rgba(167, 88, 34, 0.96), rgba(73, 34, 15, 0.96));
+  background:
+    radial-gradient(circle at 50% 18%, rgba(255, 229, 129, 0.24), transparent 38%),
+    linear-gradient(180deg, rgba(159, 83, 33, 0.98), rgba(61, 28, 13, 0.98));
+  box-shadow:
+    inset 0 0 20px rgba(255, 207, 82, 0.14),
+    0 4px 0 rgba(38, 17, 8, 0.72);
+}
+
+.crate-button--revealed .bonus-icon {
+  filter:
+    drop-shadow(0 4px 4px rgba(20, 7, 2, 0.42))
+    drop-shadow(0 0 10px rgba(255, 218, 94, 0.32));
+}
+
+.bonus-reward--coins .crate-value,
+.bonus-reward--multiplier .crate-value,
+.bonus-reward--free-spins .crate-value {
+  color: #fff1a1;
+}
+
+.bonus-reward--collect .crate-value {
+  color: #fff8cf;
 }
 
 .bet-meter {
@@ -1221,6 +1426,10 @@ h1 {
   .bonus-crates,
   .control-panel {
     grid-template-columns: 1fr;
+  }
+
+  .bonus-status-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .reward-feedback {

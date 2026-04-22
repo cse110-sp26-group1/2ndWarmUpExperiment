@@ -1112,3 +1112,220 @@ Normal should be the default setting.
 ### Manual Edits (Only if LLM failed after attempts)
 - [x] None
 - [ ] Yes
+---
+# Prompt 17 Entry
+## Prompt Used:
+
+## Role
+You are a careful senior engineer working in my existing vanilla JS slot machine project, Gunslinger Gold. The project lives in `docs/` (`index.html`, `script.js`, `styles.css`) with tests in `docs/tests/test.spec.js`. The Pick-a-Crate Bonus modal already works functionally — it renders via `#bonusTitle`, `#bonusStatus`, and `#bonusCrates` in `docs/index.html`, with logic in `docs/script.js`.
+
+## Goal
+Improve the Pick-a-Crate Bonus UI so that when the bonus appears, each crate option includes clear, polished bonus-related icons, and the overall bonus modal feels more visually rewarding and easier to understand. Keep the western/casino theme consistent with the rest of the game. Do not change gameplay behavior or bonus logic.
+
+## What to change
+
+1. Add icons/visual indicators to the Pick-a-Crate Bonus modal and crate choices.
+   - Each crate tile includes an icon or badge that makes it feel thematic and visually appealing.
+   - Appropriate iconography: crate symbol, treasure/loot, coin stack, free spins symbol, multiplier badge, jackpot/starburst, mystery/reward symbol.
+   - Icons must improve clarity and excitement without cluttering the UI.
+
+2. Improve the presentation of the Pick-a-Crate Bonus modal.
+   - Polish the modal header and stats area with better spacing, alignment, hierarchy, and emphasis for:
+     - bonus title
+     - total winnings
+     - free spins count
+     - bonus multiplier
+     - picks remaining / picks used
+   - The crate grid should feel like an intentional bonus game, not placeholder buttons.
+
+3. Improve the crate button/card states.
+   - Distinct visual states for: default, hover/focus, selected/opened, disabled/revealed.
+   - Revealed state visually communicates the reward clearly.
+
+4. Keep the implementation lightweight and consistent with the current stack.
+   - Use the project's existing vanilla JS / HTML / CSS structure.
+   - No heavy dependencies. Prefer inline SVG, existing assets, or lightweight reusable icon-rendering helpers.
+   - Icons must be configurable and reusable (driven by a config map).
+
+## Non-Negotiable Constraints
+- Preserve all existing functionality.
+- Please don't introduce anything additional beyond these changes.
+- Do not refactor unrelated architecture.
+- Do not change payout math, symbol odds, RNG behavior, or bonus selection logic.
+- No new dependencies unless absolutely required — prefer none.
+
+## Engineering Requirements
+
+### Coding Standards
+- Follow clean coding standards: meaningful names, small focused functions, errors handled.
+- Add JSDoc-style comments on every new or changed function (params, returns, throws).
+- Functions must be scalable and extendable — properly abstracted so new features, gamemodes, reward types, or icon styles are simple to add. For example, adding a new reward type should only require extending a config map, not editing render logic.
+- No hard-coded or magic values. All strings, numbers, class names, icon keys, and reward-to-icon mappings live in config objects/constants.
+
+### Structure & Safety
+- Keep linting clean.
+- Keep the implementation modular, with pure logic separated from DOM where possible.
+- Implement error handling for missing DOM nodes, unknown reward types, and invalid bonus state, without breaking current gameplay.
+- Add accessible labels/roles (aria-*) so the modal and crate interactions are testable and screen-reader friendly.
+- Ensure the UI remains responsive and readable across the desktop viewport sizes the project already supports.
+- Reuse existing bonus-state data where possible.
+
+## Testing Requirements
+All tests go in `docs/tests/test.spec.js`. Do not delete any existing tests.
+
+### Unit Tests
+- Config-driven icon/reward mapping helpers return the correct icon/class for each reward type.
+- Unknown reward types fall back safely (no throw).
+- Modal render logic produces the expected DOM structure given a mocked bonus state.
+- State-class helpers return the correct class for each crate state (default, hover/focus, selected/opened, disabled/revealed).
+
+### Playwright End-to-End Tests
+- Smoke: page loads, no console errors, spin works.
+- Bonus modal appears correctly when the Pick-a-Crate bonus triggers.
+- Each crate renders with an icon/badge.
+- Hover/focus state is applied on pointer/keyboard focus.
+- Clicking a crate transitions it to selected/opened, then revealed with the reward icon visible.
+- Remaining/disabled crates reflect the disabled/revealed state correctly.
+- Regression: existing spin, free-spin, multiplier, jackpot, and non-bonus flows continue to work unchanged.
+
+## Deliverables
+- Updated HTML/CSS/JS for the Pick-a-Crate Bonus UI only.
+- Reusable config/constants for icon set, reward-to-icon mapping, and state styling.
+- JSDoc comments for all new/updated functions.
+- Tests added to `docs/tests/test.spec.js`.
+- A short summary of files changed with diffs and a quick manual test checklist.
+- No unrelated refactors or feature additions.
+
+## Ambiguity Handling
+If anything is ambiguous, infer the safest default that preserves current behavior and keep the changes minimal and localized to the Pick-a-Crate bonus flow.
+
+## Result
+### List what it got correct:
+- Added better icons
+- Better pick-a-crate UI
+- Added JSDoc
+
+### List what it didn't get correct:
+- None
+### List any unexpected behavior or errors it introduced:
+- None
+
+
+### Manual Edits (Only if LLM failed after attempts)
+- [x] None
+- [ ] Yes
+# Prompt 18 Entry
+## Prompt: Add Regression and Smoke Tests for Pick-a-Crate Feature
+
+You are a careful senior engineer working in my existing vanilla JS slot machine project. The Pick-a-Crate Bonus UI enhancement was just added. Your task is to add regression tests and smoke tests for that new Pick-a-Crate code, and only for that scope plus any directly related integration coverage needed to verify it does not break existing behavior.
+
+
+
+## Context
+
+- The Pick-a-Crate Bonus code was recently generated and integrated into the project.
+- It includes UI improvements such as crate icons, improved modal presentation, crate states, and related rendering/config logic.
+- I now want test coverage focused on validating that this new code works and that it did not break surrounding gameplay behavior.
+
+
+
+## Goal
+
+Add regression and smoke test coverage for the new Pick-a-Crate implementation.
+
+
+
+## What to Do
+
+### 1. Add Regression Tests for Pick-a-Crate
+
+- Verify the Pick-a-Crate modal renders correctly when triggered.
+- Verify crate options render correctly, including any new icons/badges/visual indicators.
+- Verify stats/summary content still renders correctly:
+  - bonus title  
+  - total winnings  
+  - free spins  
+  - multiplier  
+  - picks used / picks remaining  
+- Verify crate state transitions:
+  - default  
+  - hover/focus (if testable)  
+  - opened/revealed  
+  - disabled/non-interactive after use  
+- Verify revealed rewards display correctly and the bonus flow continues.
+- Verify config-driven icon/reward mappings work correctly.
+- Add tests for edge cases and error handling introduced by the new code.
+
+
+### 2. Add Smoke Tests for Core Flow
+
+- Confirm the app loads successfully.
+- Confirm the slot machine initializes without errors.
+- Confirm a basic spin flow still works.
+- Confirm the Pick-a-Crate modal appears and is interactable.
+- Confirm completing or exiting the Pick-a-Crate flow does not break game state.
+- Confirm no regressions to:
+  - spin logic  
+  - bonus logic  
+  - balance updates  
+
+
+### 3. Testing Best Practices
+
+- Prefer deterministic tests.
+- Reuse existing test helpers and setup patterns.
+- Avoid brittle selectors; use:
+  - stable selectors  
+  - roles  
+  - labels  
+  - test-friendly attributes  
+- If needed, add minimal attributes to improve testability.
+
+
+
+## Technical Requirements
+
+- Preserve all existing functionality.
+- Do not introduce anything beyond these changes.
+- Add JSDoc documentation where relevant.
+- Ensure linting-compliant code.
+- Do not use hard-coded values; use config objects/constants.
+- Maintain modular structure.
+- Implement proper error handling.
+- Write unit tests.
+- Write end-to-end tests using Playwright.
+- Write all tests in `test.spec.js`.
+- Do not delete any existing tests.
+
+## Testing Expectations
+
+- Unit/regression tests must cover:
+  - Pick-a-Crate rendering logic  
+  - icon/config mappings  
+  - reward reveal behavior  
+  - state transitions  
+- Playwright smoke tests must cover:
+  - primary user flows  
+  - app stability after integration  
+- Extend existing tests when appropriate instead of duplicating coverage.
+- Ensure no regression in previously working features.
+
+## Deliverables
+
+- Regression tests for Pick-a-Crate feature  
+- Smoke tests for affected application flows  
+- Minimal testability improvements (if needed)  
+- All tests added to `test.spec.js`  
+- No unrelated refactors or feature additions  
+
+## Results
+### List what it got correct:
+- Added smoke and regression tests
+### List what it didn't get correct:
+- None
+### List any unexpected behavior or errors it introduced:
+- None
+
+### Manual Edits (Only if LLM failed after attempts)
+- [x] None
+- [ ] Yes

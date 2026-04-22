@@ -36,6 +36,21 @@ const TEST_CONFIG = {
     dynamite: "[data-symbol='dynamite'] [data-symbol-icon='dynamite']",
     wild: "[data-symbol='wild'] [data-symbol-icon='wild']"
   },
+  bonusRewardTypes: {
+    coins: "coins",
+    multiplier: "multiplier",
+    freeSpins: "free-spins",
+    collect: "collect",
+    unknown: "__unknown-bonus-reward__"
+  },
+  bonusRewardIcons: {
+    coins: "coin-stack",
+    multiplier: "multiplier",
+    freeSpins: "free-spins",
+    collect: "jackpot-star",
+    mystery: "mystery",
+    hidden: "crate"
+  },
   bonusSpinBoard: [
     ["dynamite", "badge", "dynamite", "k", "a"],
     ["cowboy", "dynamite", "wild", "q", "10"],
@@ -137,6 +152,48 @@ async function settleBoard(page, board, usedFreeSpin = false) {
     renderBoard(state.board, state.boardFeatures);
     settleSpin(state.board, state.boardFeatures, nextUsedFreeSpin);
   }, { nextBoard: board, nextUsedFreeSpin: usedFreeSpin });
+}
+
+/**
+ * Creates a deterministic bonus prize set for Pick-a-Crate UI tests.
+ * @param {number} [bet]
+ * @returns {import("../script.js").BonusPrize[]}
+ */
+function createOrderedBonusPrizes(bet = TEST_CONFIG.bet) {
+  const { labels, values } = game.BONUS_CONFIG;
+  const rewardTypes = TEST_CONFIG.bonusRewardTypes;
+  const coinValue = (multiplier) => bet * multiplier;
+
+  return [
+    { type: rewardTypes.coins, label: labels.coinsSmall, value: coinValue(values.coinsSmallMultiplier) },
+    { type: rewardTypes.coins, label: labels.coinsMedium, value: coinValue(values.coinsMediumMultiplier) },
+    { type: rewardTypes.freeSpins, label: labels.freeSpins, value: values.bonusFreeSpins },
+    { type: rewardTypes.multiplier, label: labels.multiplier, value: values.bonusMultiplier },
+    { type: rewardTypes.coins, label: labels.coinsLarge, value: coinValue(values.coinsLargeMultiplier) },
+    { type: rewardTypes.collect, label: labels.collect, value: 0 }
+  ];
+}
+
+/**
+ * Opens the Pick-a-Crate bonus with deterministic prizes and optional state overrides.
+ * @param {import("@playwright/test").Page} page
+ * @param {{revealedCrates?: boolean[], statePatch?: Partial<import("../script.js").BonusRoundState>}} [options]
+ */
+async function openOrderedBonusRound(page, options = {}) {
+  const defaultRevealedCrates = Array.from({ length: game.BONUS_CONFIG.crateCount }, () => false);
+
+  await settleBoard(page, TEST_CONFIG.bonusSpinBoard, false);
+  await page.evaluate(({ prizes, revealedCrates, statePatch }) => {
+    state.bonusRound.prizes = prizes;
+    state.bonusRound.revealedCrates = revealedCrates;
+    Object.assign(state.bonusRound, statePatch);
+    renderBonusRound();
+    updateDisplays();
+  }, {
+    prizes: createOrderedBonusPrizes(),
+    revealedCrates: options.revealedCrates || defaultRevealedCrates,
+    statePatch: options.statePatch || {}
+  });
 }
 
 /**
@@ -382,6 +439,83 @@ test.describe("unit", () => {
     expect(prizeTypes).toEqual(["coins", "coins", "coins", "collect", "free-spins", "multiplier"]);
   });
 
+  test("maps bonus reward types to configured icons and classes with a safe fallback", async () => {
+    const rewardTypes = TEST_CONFIG.bonusRewardTypes;
+    const rewardIcons = TEST_CONFIG.bonusRewardIcons;
+
+    expect(game.getBonusRewardIconKey(rewardTypes.coins)).toBe(rewardIcons.coins);
+    expect(game.getBonusRewardIconKey(rewardTypes.freeSpins)).toBe(rewardIcons.freeSpins);
+    expect(game.getBonusRewardIconKey(rewardTypes.multiplier)).toBe(rewardIcons.multiplier);
+    expect(game.getBonusRewardIconKey(rewardTypes.collect)).toBe(rewardIcons.collect);
+    expect(game.getBonusRewardIconKey(rewardTypes.unknown)).toBe(game.BONUS_UI_CONFIG.fallbackIconKey);
+    expect(game.getBonusRewardClassName(rewardTypes.coins)).toBe(game.BONUS_UI_CONFIG.rewardTypes.coins.className);
+    expect(game.getBonusRewardClassName(rewardTypes.unknown)).toBe(game.BONUS_UI_CONFIG.rewardTypes.mystery.className);
+  });
+
+  test("builds configured bonus crate state classes", async () => {
+    expect(game.getBonusCrateStateClass(game.BONUS_CRATE_STATE_KEYS.default)).toBe("crate-button--default");
+    expect(game.getBonusCrateStateClass(game.BONUS_CRATE_STATE_KEYS.hover)).toBe("crate-button--hover");
+    expect(game.getBonusCrateStateClass(game.BONUS_CRATE_STATE_KEYS.focus)).toBe("crate-button--focus");
+    expect(game.getBonusCrateStateClass(game.BONUS_CRATE_STATE_KEYS.selected)).toBe("crate-button--selected");
+    expect(game.getBonusCrateStateClass(game.BONUS_CRATE_STATE_KEYS.opened)).toBe("crate-button--opened");
+    expect(game.getBonusCrateStateClass(game.BONUS_CRATE_STATE_KEYS.disabled)).toBe("crate-button--disabled");
+    expect(game.getBonusCrateStateClass(game.BONUS_CRATE_STATE_KEYS.revealed)).toBe("crate-button--revealed");
+    expect(game.getBonusCrateStateClass("__missing-state__")).toBe(game.BONUS_UI_CONFIG.stateClassNames.default);
+    expect(game.getBonusCrateStateClasses({})).toContain("crate-button--default");
+    expect(game.getBonusCrateStateClasses({ isSelected: true })).toContain("crate-button--selected");
+    expect(game.getBonusCrateStateClasses({ isRevealed: true })).toContain("crate-button--revealed");
+    expect(game.getBonusCrateStateClasses({ isDisabled: true })).toContain("crate-button--disabled");
+  });
+
+  test("creates bonus status and crate view models from mocked state", async () => {
+    const bonusState = {
+      active: true,
+      totalCoins: 240,
+      freeSpinsAwarded: 6,
+      bonusMultiplier: 2,
+      picksMade: 2,
+      revealedCrates: [true, false],
+      prizes: [
+        { type: "coins", label: "Small Coins", value: 80 },
+        { type: "free-spins", label: "Extra Free Spins", value: 6 }
+      ]
+    };
+    const status = game.createBonusStatusViewModel(bonusState);
+    const revealedCrate = game.createBonusCrateViewModel(bonusState.prizes[0], 0, bonusState);
+    const hiddenCrate = game.createBonusCrateViewModel(bonusState.prizes[1], 1, bonusState);
+
+    expect(status.map((item) => item.value)).toEqual(["240", "+6", "x2", "2/3"]);
+    expect(revealedCrate.iconKey).toBe("coin-stack");
+    expect(revealedCrate.className).toContain("crate-button--revealed");
+    expect(revealedCrate.valueText).toBe("80");
+    expect(hiddenCrate.iconKey).toBe("crate");
+    expect(hiddenCrate.className).toContain("crate-button--default");
+    expect(hiddenCrate.valueText).toBe(game.BONUS_UI_CONFIG.crate.hiddenValueText);
+  });
+
+  test("handles invalid bonus UI state and unknown reward icons without throwing", async () => {
+    const bonusState = {
+      active: true,
+      totalCoins: 0,
+      freeSpinsAwarded: 0,
+      bonusMultiplier: 1,
+      picksMade: 0,
+      revealedCrates: [true],
+      prizes: [
+        { type: TEST_CONFIG.bonusRewardTypes.unknown, label: "Unknown Loot", value: 0 }
+      ]
+    };
+    const crateViewModel = game.createBonusCrateViewModel(bonusState.prizes[0], 0, bonusState);
+    const fallbackIconMarkup = game.createBonusIconMarkup("__missing-icon__");
+
+    expect(game.isValidBonusRoundState(bonusState)).toBe(true);
+    expect(game.isValidBonusRoundState(null)).toBe(false);
+    expect(game.isValidBonusRoundState({ prizes: [], revealedCrates: [], totalCoins: Number.NaN })).toBe(false);
+    expect(crateViewModel.iconKey).toBe(TEST_CONFIG.bonusRewardIcons.mystery);
+    expect(crateViewModel.rewardClassName).toBe(game.BONUS_UI_CONFIG.rewardTypes.mystery.className);
+    expect(fallbackIconMarkup).toContain(`data-bonus-icon="${TEST_CONFIG.bonusRewardIcons.mystery}"`);
+  });
+
   test("grants daily rewards only when the saved login date changes", async () => {
     expect(game.shouldGrantDailyReward(TEST_CONFIG.previousDateKey, TEST_CONFIG.todayDateKey)).toBe(true);
     expect(game.shouldGrantDailyReward(TEST_CONFIG.todayDateKey, TEST_CONFIG.todayDateKey)).toBe(false);
@@ -611,6 +745,40 @@ test.describe("smoke", () => {
     expect(consoleErrors).toEqual([]);
   });
 
+  test("pick-a-crate smoke flow opens, reveals, completes, and leaves the game usable", async ({ page }) => {
+    const consoleErrors = [];
+    page.on("console", (message) => {
+      if (message.type() === "error") {
+        consoleErrors.push(message.text());
+      }
+    });
+
+    await gotoGame(page);
+    await openOrderedBonusRound(page);
+
+    await expect(page.locator("#bonusOverlay")).toHaveClass(/show/);
+    await expect(page.locator(".crate-button")).toHaveCount(game.BONUS_CONFIG.crateCount);
+    await page.locator(".crate-button").nth(0).click();
+    await expect(page.locator(".crate-button").nth(0)).toBeDisabled();
+    await page.locator(".crate-button").nth(1).click();
+    await page.locator(".crate-button").nth(2).click();
+    await expect(page.locator("#bonusOverlay")).not.toHaveClass(/show/);
+    await expect(page.locator("#spinButton")).toBeEnabled();
+    await expect(page.locator("#balanceDisplay")).toHaveText(String(
+      game.GAME_LIMITS.defaultBalance + createOrderedBonusPrizes()[0].value + createOrderedBonusPrizes()[1].value
+    ));
+    await page.evaluate(({ board }) => {
+      NEAR_MISS_CONFIG.enabled = false;
+      createBoard = () => board.map((row) => [...row]);
+      rollRandomJackpotTier = () => null;
+    }, { board: TEST_CONFIG.nearMissBoard });
+    await page.click("#spinButton");
+    await expect(page.locator("#spinButton")).toHaveText("Skip");
+    await page.click("#spinButton");
+    await expect(page.locator("#spinButton")).toHaveText("Spin");
+    expect(consoleErrors).toEqual([]);
+  });
+
   test("updated western icons render as inline SVG without losing styling hooks", async ({ page }) => {
     await gotoGame(page);
     await page.evaluate(({ board }) => {
@@ -773,6 +941,142 @@ test.describe("payline rendering", () => {
       highlightedCells: 0,
       segments: 0
     });
+  });
+});
+
+test.describe("bonus modal ui", () => {
+  test("renders pick-a-crate bonus icons, stats, and crate interaction states", async ({ page }) => {
+    await gotoGame(page);
+    await openOrderedBonusRound(page);
+
+    const crates = page.locator(".crate-button");
+
+    await expect(page.locator("#bonusOverlay")).toHaveClass(/show/);
+    await expect(page.locator("#bonusTitle")).toContainText("Pick-A-Crate");
+    await expect(page.locator("[data-bonus-stat='totalCoins'] .bonus-stat-value")).toHaveText("0");
+    await expect(page.locator("[data-bonus-stat='freeSpinsAwarded'] .bonus-stat-value")).toHaveText("+0");
+    await expect(page.locator("[data-bonus-stat='bonusMultiplier'] .bonus-stat-value")).toHaveText("x1");
+    await expect(page.locator("[data-bonus-stat='picksMade'] .bonus-stat-value")).toHaveText("0/3");
+    await expect(crates).toHaveCount(game.BONUS_CONFIG.crateCount);
+    await expect(page.locator(`.crate-button [data-bonus-icon='${TEST_CONFIG.bonusRewardIcons.hidden}']`)).toHaveCount(game.BONUS_CONFIG.crateCount);
+
+    await crates.nth(0).hover();
+    await expect(crates.nth(0)).toHaveClass(/crate-button--hover/);
+
+    await crates.nth(1).focus();
+    await expect(crates.nth(1)).toHaveClass(/crate-button--focus/);
+
+    await crates.nth(0).click();
+    await expect(crates.nth(0)).toBeDisabled();
+    await expect(crates.nth(0)).toHaveClass(/crate-button--revealed/);
+    await expect(crates.nth(0)).toHaveClass(/crate-button--opened/);
+    await expect(crates.nth(0).locator(`[data-bonus-icon='${TEST_CONFIG.bonusRewardIcons.coins}']`)).toHaveCount(1);
+    await expect(crates.nth(0).locator(".crate-value")).toHaveText(String(createOrderedBonusPrizes()[0].value));
+    await expect(crates.nth(1)).not.toBeDisabled();
+    await expect(crates.nth(1)).toHaveClass(/crate-button--default/);
+    await expect(page.locator("[data-bonus-stat='totalCoins'] .bonus-stat-value")).toHaveText(String(createOrderedBonusPrizes()[0].value));
+    await expect(page.locator("[data-bonus-stat='picksMade'] .bonus-stat-value")).toHaveText("1/3");
+  });
+
+  test("renders every revealed reward icon and accessible crate label from config", async ({ page }) => {
+    const prizes = createOrderedBonusPrizes();
+    await gotoGame(page);
+    await openOrderedBonusRound(page, {
+      revealedCrates: Array.from({ length: game.BONUS_CONFIG.crateCount }, () => true),
+      statePatch: {
+        totalCoins: prizes[0].value + prizes[1].value,
+        freeSpinsAwarded: prizes[2].value,
+        bonusMultiplier: prizes[3].value,
+        picksMade: game.BONUS_CONFIG.maxPicks
+      }
+    });
+
+    const dialog = page.getByRole("dialog", { name: /Pick-A-Crate/ });
+    const crates = page.locator(".crate-button");
+
+    await expect(dialog).toBeVisible();
+    await expect(page.locator("[data-bonus-stat='totalCoins'] .bonus-stat-value")).toHaveText(String(prizes[0].value + prizes[1].value));
+    await expect(page.locator("[data-bonus-stat='freeSpinsAwarded'] .bonus-stat-value")).toHaveText(`+${prizes[2].value}`);
+    await expect(page.locator("[data-bonus-stat='bonusMultiplier'] .bonus-stat-value")).toHaveText(`x${prizes[3].value}`);
+    await expect(page.locator("[data-bonus-stat='picksMade'] .bonus-stat-value")).toHaveText(`${game.BONUS_CONFIG.maxPicks}/${game.BONUS_CONFIG.maxPicks}`);
+    await expect(page.locator(`.crate-button [data-bonus-icon='${TEST_CONFIG.bonusRewardIcons.coins}']`)).toHaveCount(3);
+    await expect(page.locator(`.crate-button [data-bonus-icon='${TEST_CONFIG.bonusRewardIcons.freeSpins}']`)).toHaveCount(1);
+    await expect(page.locator(`.crate-button [data-bonus-icon='${TEST_CONFIG.bonusRewardIcons.multiplier}']`)).toHaveCount(1);
+    await expect(page.locator(`.crate-button [data-bonus-icon='${TEST_CONFIG.bonusRewardIcons.collect}']`)).toHaveCount(1);
+
+    for (let crateIndex = 0; crateIndex < game.BONUS_CONFIG.crateCount; crateIndex += 1) {
+      await expect(crates.nth(crateIndex)).toBeDisabled();
+      await expect(crates.nth(crateIndex)).toHaveAttribute("aria-pressed", "true");
+      await expect(crates.nth(crateIndex)).toHaveAttribute("aria-label", new RegExp(`Crate ${crateIndex + 1}.*revealed reward`));
+    }
+  });
+
+  test("ignores repeated revealed crate picks without mutating bonus totals", async ({ page }) => {
+    await gotoGame(page);
+    await openOrderedBonusRound(page);
+    await page.locator(".crate-button").first().click();
+
+    const beforeRepeatPick = await page.evaluate(() => ({
+      picksMade: state.bonusRound.picksMade,
+      totalCoins: state.bonusRound.totalCoins,
+      revealedCrates: [...state.bonusRound.revealedCrates]
+    }));
+
+    await page.evaluate(() => {
+      resolveBonusPick(0);
+    });
+
+    const afterRepeatPick = await page.evaluate(() => ({
+      picksMade: state.bonusRound.picksMade,
+      totalCoins: state.bonusRound.totalCoins,
+      revealedCrates: [...state.bonusRound.revealedCrates]
+    }));
+
+    expect(afterRepeatPick).toEqual(beforeRepeatPick);
+  });
+
+  test("falls back safely for unknown rendered reward types", async ({ page }) => {
+    await gotoGame(page);
+    await openOrderedBonusRound(page, {
+      revealedCrates: [true, false, false, false, false, false],
+      statePatch: {
+        prizes: [
+          { type: TEST_CONFIG.bonusRewardTypes.unknown, label: "Unknown Loot", value: 0 },
+          ...createOrderedBonusPrizes().slice(1)
+        ]
+      }
+    });
+
+    const firstCrate = page.locator(".crate-button").first();
+
+    await expect(firstCrate).toBeDisabled();
+    await expect(firstCrate).toHaveAttribute("data-reward-type", TEST_CONFIG.bonusRewardTypes.unknown);
+    await expect(firstCrate.locator(`[data-bonus-icon='${TEST_CONFIG.bonusRewardIcons.mystery}']`)).toHaveCount(1);
+    await expect(firstCrate.locator(".crate-value")).toHaveText(game.BONUS_UI_CONFIG.rewardTypes.mystery.emptyValueText);
+  });
+
+  test("completes the pick-a-crate flow and restores game interaction state", async ({ page }) => {
+    const prizes = createOrderedBonusPrizes();
+    await gotoGame(page);
+    await openOrderedBonusRound(page, {
+      statePatch: {
+        totalCoins: 0,
+        freeSpinsAwarded: 0,
+        bonusMultiplier: 1,
+        picksMade: 0
+      }
+    });
+
+    await page.locator(".crate-button").nth(0).click();
+    await page.locator(".crate-button").nth(3).click();
+    await page.locator(".crate-button").nth(2).click();
+
+    await expect(page.locator("#bonusOverlay")).not.toHaveClass(/show/);
+    await expect(page.locator("#balanceDisplay")).toHaveText(String(game.GAME_LIMITS.defaultBalance + prizes[0].value));
+    await expect(page.locator("#freeSpinsMeter")).toBeVisible();
+    await expect(page.locator("#freeSpinsDisplay")).toContainText(String(prizes[2].value));
+    await expect(page.locator("#spinButton")).toBeEnabled();
+    await expect(page.locator("#statusMessage")).toContainText("Bonus win");
   });
 });
 

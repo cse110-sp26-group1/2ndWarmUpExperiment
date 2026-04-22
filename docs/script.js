@@ -266,6 +266,235 @@ const BONUS_CONFIG = {
   }
 };
 
+const BONUS_CRATE_STATE_KEYS = Object.freeze({
+  default: "default",
+  hover: "hover",
+  focus: "focus",
+  selected: "selected",
+  opened: "opened",
+  disabled: "disabled",
+  revealed: "revealed"
+});
+
+const BONUS_UI_CONFIG = Object.freeze({
+  elementIds: {
+    overlay: "bonusOverlay",
+    status: "bonusStatus",
+    crates: "bonusCrates"
+  },
+  classNames: {
+    overlayVisible: "show",
+    status: "bonus-status",
+    statusGrid: "bonus-status-grid",
+    stat: "bonus-stat",
+    statLabel: "bonus-stat-label",
+    statValue: "bonus-stat-value",
+    crateButton: "crate-button",
+    crateContent: "crate-content",
+    crateTopline: "crate-topline",
+    crateTitle: "crate-title",
+    crateValue: "crate-value",
+    crateMeta: "crate-meta",
+    iconShell: "bonus-icon",
+    rewardBadge: "crate-reward-badge"
+  },
+  selectors: {
+    crateButton: ".crate-button"
+  },
+  stateClassNames: {
+    default: "crate-button--default",
+    hover: "crate-button--hover",
+    focus: "crate-button--focus",
+    selected: "crate-button--selected",
+    opened: "crate-button--opened",
+    disabled: "crate-button--disabled",
+    revealed: "crate-button--revealed"
+  },
+  separators: {
+    className: " ",
+    picks: "/",
+    aria: ", "
+  },
+  events: {
+    click: "click",
+    pointerOver: "pointerover",
+    pointerOut: "pointerout",
+    focusIn: "focusin",
+    focusOut: "focusout"
+  },
+  fallbackRewardType: "mystery",
+  fallbackIconKey: "mystery",
+  crate: {
+    indexBase: 1,
+    hiddenIconKey: "crate",
+    hiddenTitle: "Sealed Crate",
+    hiddenValueText: "Mystery Loot",
+    hiddenMeta: "Bonus Reward",
+    indexLabel: "Crate",
+    revealedMeta: "Revealed",
+    ariaHiddenSuffix: "sealed mystery reward",
+    ariaRevealedPrefix: "revealed reward"
+  },
+  messages: {
+    chooseCrates: "Choose up to three crates.",
+    missingElement: "Missing bonus UI element",
+    invalidState: "Invalid bonus round state while rendering.",
+    unknownRewardType: "Unknown bonus reward type while rendering."
+  },
+  stats: [
+    {
+      key: "totalCoins",
+      valueKey: "totalCoins",
+      label: "Total Winnings",
+      prefix: "",
+      suffix: "",
+      className: "bonus-stat--coins"
+    },
+    {
+      key: "freeSpinsAwarded",
+      valueKey: "freeSpinsAwarded",
+      label: "Free Spins",
+      prefix: "+",
+      suffix: "",
+      className: "bonus-stat--free-spins"
+    },
+    {
+      key: "bonusMultiplier",
+      valueKey: "bonusMultiplier",
+      label: "Bonus Multiplier",
+      prefix: "x",
+      suffix: "",
+      className: "bonus-stat--multiplier"
+    },
+    {
+      key: "picksMade",
+      valueKey: "picksMade",
+      label: "Picks Used",
+      prefix: "",
+      suffix: "",
+      className: "bonus-stat--picks",
+      maxValue: BONUS_CONFIG.maxPicks
+    }
+  ],
+  rewardTypes: {
+    coins: {
+      iconKey: "coin-stack",
+      className: "bonus-reward--coins",
+      label: "Coins",
+      valuePrefix: "",
+      valueSuffix: "",
+      emptyValueText: "0"
+    },
+    multiplier: {
+      iconKey: "multiplier",
+      className: "bonus-reward--multiplier",
+      label: "Multiplier",
+      valuePrefix: "x",
+      valueSuffix: "",
+      emptyValueText: "x1"
+    },
+    "free-spins": {
+      iconKey: "free-spins",
+      className: "bonus-reward--free-spins",
+      label: "Free Spins",
+      valuePrefix: "+",
+      valueSuffix: "",
+      emptyValueText: "+0"
+    },
+    collect: {
+      iconKey: "jackpot-star",
+      className: "bonus-reward--collect",
+      label: "Collect",
+      valuePrefix: "",
+      valueSuffix: "",
+      emptyValueText: "Collect"
+    },
+    mystery: {
+      iconKey: "mystery",
+      className: "bonus-reward--mystery",
+      label: "Mystery",
+      valuePrefix: "",
+      valueSuffix: "",
+      emptyValueText: "Mystery"
+    }
+  },
+  icons: {
+    crate: {
+      key: "crate",
+      title: "Sealed crate",
+      className: "bonus-icon--crate",
+      viewBox: "0 0 64 64",
+      markup: `
+        <path d="M10 21h44v34H10z" fill="#7b421f" stroke="#32180b" stroke-width="3" />
+        <path d="M13 24h38v28H13z" fill="#9d5a2a" opacity="0.76" />
+        <path d="M10 21l8-10h28l8 10" fill="#b87332" stroke="#32180b" stroke-width="3" stroke-linejoin="round" />
+        <path d="M18 11v44M46 11v44M10 38h44M15 25l34 25M49 25L15 50" stroke="#3b1d0d" stroke-width="3" stroke-linecap="round" opacity="0.72" />
+        <path d="M20 16h24" stroke="#ffd978" stroke-width="3" stroke-linecap="round" opacity="0.82" />
+      `
+    },
+    "coin-stack": {
+      key: "coin-stack",
+      title: "Coin stack",
+      className: "bonus-icon--coin-stack",
+      viewBox: "0 0 64 64",
+      markup: `
+        <ellipse cx="31" cy="16" rx="17" ry="7" fill="#ffeaa0" stroke="#8b5516" stroke-width="3" />
+        <path d="M14 16v22c0 4 8 7 17 7s17-3 17-7V16" fill="#d89424" stroke="#8b5516" stroke-width="3" />
+        <path d="M14 25c0 4 8 7 17 7s17-3 17-7M14 34c0 4 8 7 17 7s17-3 17-7" fill="none" stroke="#fff0a8" stroke-width="2.5" opacity="0.7" />
+        <circle cx="44" cy="41" r="10" fill="#ffd658" stroke="#8b5516" stroke-width="3" />
+        <path d="M44 35v12M38 41h12" stroke="#8b5516" stroke-width="2.5" stroke-linecap="round" />
+      `
+    },
+    "free-spins": {
+      key: "free-spins",
+      title: "Free spins",
+      className: "bonus-icon--free-spins",
+      viewBox: "0 0 64 64",
+      markup: `
+        <path d="M18 21a19 19 0 0 1 30 3" fill="none" stroke="#fff0a8" stroke-width="5" stroke-linecap="round" />
+        <path d="M47 14l2 11-11-1" fill="#fff0a8" stroke="#6a3515" stroke-width="2" stroke-linejoin="round" />
+        <path d="M46 43a19 19 0 0 1-30-3" fill="none" stroke="#f6cb58" stroke-width="5" stroke-linecap="round" />
+        <path d="M17 50l-2-11 11 1" fill="#f6cb58" stroke="#6a3515" stroke-width="2" stroke-linejoin="round" />
+        <text x="32" y="38" text-anchor="middle" fill="#321509" font-size="16" font-weight="900" font-family="Georgia, serif">FS</text>
+      `
+    },
+    multiplier: {
+      key: "multiplier",
+      title: "Multiplier",
+      className: "bonus-icon--multiplier",
+      viewBox: "0 0 64 64",
+      markup: `
+        <path d="M32 7l6 15 16 2-12 11 3 16-13-8-13 8 3-16L10 24l16-2z" fill="#ffe47a" stroke="#704017" stroke-width="3" stroke-linejoin="round" />
+        <circle cx="32" cy="32" r="13" fill="#9a4f20" stroke="#fff0a8" stroke-width="3" />
+        <text x="32" y="38" text-anchor="middle" fill="#fff5c8" font-size="18" font-weight="900" font-family="Georgia, serif">x</text>
+      `
+    },
+    "jackpot-star": {
+      key: "jackpot-star",
+      title: "Jackpot starburst",
+      className: "bonus-icon--jackpot-star",
+      viewBox: "0 0 64 64",
+      markup: `
+        <path d="M32 5l6 13 14-5-5 14 12 7-14 5 4 15-13-7-10 12-3-15-15 1 9-12-9-11 15 1 3-15z" fill="#ffd658" stroke="#6a3515" stroke-width="3" stroke-linejoin="round" />
+        <circle cx="32" cy="32" r="12" fill="#8f3d1a" stroke="#fff0a8" stroke-width="3" />
+        <path d="M26 32l4 4 9-10" fill="none" stroke="#fff5c8" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" />
+      `
+    },
+    mystery: {
+      key: "mystery",
+      title: "Mystery reward",
+      className: "bonus-icon--mystery",
+      viewBox: "0 0 64 64",
+      markup: `
+        <path d="M16 15h32v34H16z" fill="#6f3d1f" stroke="#32180b" stroke-width="3" />
+        <path d="M20 19h24v26H20z" fill="#ad6830" opacity="0.8" />
+        <path d="M25 28c1-6 6-9 12-7 5 2 7 7 4 11-2 3-6 4-7 8" fill="none" stroke="#fff0a8" stroke-width="4" stroke-linecap="round" />
+        <circle cx="33" cy="46" r="3" fill="#fff0a8" />
+      `
+    }
+  }
+});
+
 const RETENTION_CONFIG = {
   feedbackDurationMs: 3200,
   dailyLoginReward: {
@@ -771,6 +1000,333 @@ function serializeHtmlAttributes(attributes) {
     .filter(([, value]) => typeof value === "string" && value.length > 0)
     .map(([name, value]) => `${escapeHtml(name)}="${escapeHtml(value)}"`)
     .join(" ");
+}
+
+/**
+ * Resolves the configured presentation for a bonus reward type, falling back safely for unknown prizes.
+ * @param {string} rewardType
+ * @param {typeof BONUS_UI_CONFIG} [config]
+ * @returns {{iconKey: string, className: string, label: string, valuePrefix: string, valueSuffix: string, emptyValueText: string}}
+ */
+function getBonusRewardUiConfig(rewardType, config = BONUS_UI_CONFIG) {
+  const fallbackConfig = config.rewardTypes[config.fallbackRewardType];
+
+  if (typeof rewardType !== "string" || !config.rewardTypes[rewardType]) {
+    console.warn(config.messages.unknownRewardType, rewardType);
+    return fallbackConfig;
+  }
+
+  return config.rewardTypes[rewardType];
+}
+
+/**
+ * Resolves the icon key configured for a bonus reward type.
+ * @param {string} rewardType
+ * @param {typeof BONUS_UI_CONFIG} [config]
+ * @returns {string}
+ */
+function getBonusRewardIconKey(rewardType, config = BONUS_UI_CONFIG) {
+  return getBonusRewardUiConfig(rewardType, config).iconKey;
+}
+
+/**
+ * Resolves the CSS class configured for a bonus reward type.
+ * @param {string} rewardType
+ * @param {typeof BONUS_UI_CONFIG} [config]
+ * @returns {string}
+ */
+function getBonusRewardClassName(rewardType, config = BONUS_UI_CONFIG) {
+  return getBonusRewardUiConfig(rewardType, config).className;
+}
+
+/**
+ * Resolves a crate state CSS class from the configured state map.
+ * @param {string} stateKey
+ * @param {typeof BONUS_UI_CONFIG} [config]
+ * @returns {string}
+ */
+function getBonusCrateStateClass(stateKey, config = BONUS_UI_CONFIG) {
+  if (!config.stateClassNames[stateKey]) {
+    return config.stateClassNames[BONUS_CRATE_STATE_KEYS.default];
+  }
+
+  return config.stateClassNames[stateKey];
+}
+
+/**
+ * Builds the complete CSS class string for a crate button from its visual state.
+ * @param {{isRevealed?: boolean, isSelected?: boolean, isDisabled?: boolean}} crateState
+ * @param {typeof BONUS_UI_CONFIG} [config]
+ * @returns {string}
+ */
+function getBonusCrateStateClasses(crateState, config = BONUS_UI_CONFIG) {
+  const classes = [config.classNames.crateButton];
+
+  if (crateState.isRevealed) {
+    classes.push(
+      getBonusCrateStateClass(BONUS_CRATE_STATE_KEYS.opened, config),
+      getBonusCrateStateClass(BONUS_CRATE_STATE_KEYS.revealed, config)
+    );
+  } else if (crateState.isSelected) {
+    classes.push(
+      getBonusCrateStateClass(BONUS_CRATE_STATE_KEYS.selected, config),
+      getBonusCrateStateClass(BONUS_CRATE_STATE_KEYS.opened, config)
+    );
+  } else {
+    classes.push(getBonusCrateStateClass(BONUS_CRATE_STATE_KEYS.default, config));
+  }
+
+  if (crateState.isDisabled || crateState.isRevealed) {
+    classes.push(getBonusCrateStateClass(BONUS_CRATE_STATE_KEYS.disabled, config));
+  }
+
+  return classes.join(config.separators.className);
+}
+
+/**
+ * Builds inline SVG markup for a configured bonus icon.
+ * @param {string} iconKey
+ * @param {typeof BONUS_UI_CONFIG} [config]
+ * @returns {string}
+ */
+function createBonusIconMarkup(iconKey, config = BONUS_UI_CONFIG) {
+  const iconConfig = config.icons[iconKey] || config.icons[config.fallbackIconKey];
+
+  return `
+    <span class="${escapeHtml(config.classNames.iconShell)} ${escapeHtml(iconConfig.className)}" data-bonus-icon="${escapeHtml(iconConfig.key)}" aria-hidden="true">
+      <svg viewBox="${escapeHtml(iconConfig.viewBox)}" focusable="false" xmlns="http://www.w3.org/2000/svg">
+        ${iconConfig.markup}
+      </svg>
+    </span>
+  `;
+}
+
+/**
+ * Formats the visible value for a revealed bonus prize.
+ * @param {BonusPrize} prize
+ * @param {typeof BONUS_UI_CONFIG.rewardTypes.coins} rewardConfig
+ * @returns {string}
+ */
+function formatBonusPrizeValue(prize, rewardConfig) {
+  const numericValue = Number(prize.value);
+
+  if (!Number.isFinite(numericValue) || numericValue <= 0) {
+    return rewardConfig.emptyValueText;
+  }
+
+  return `${rewardConfig.valuePrefix}${numericValue}${rewardConfig.valueSuffix}`;
+}
+
+/**
+ * Creates the stat view models rendered in the bonus modal header.
+ * @param {BonusRoundState} bonusState
+ * @param {typeof BONUS_UI_CONFIG} [config]
+ * @returns {{key: string, label: string, value: string, className: string}[]}
+ */
+function createBonusStatusViewModel(bonusState, config = BONUS_UI_CONFIG) {
+  return config.stats.map((statConfig) => {
+    const rawValue = Number(bonusState[statConfig.valueKey]);
+    const value = Number.isFinite(rawValue) ? rawValue : 0;
+    const valueText = typeof statConfig.maxValue === "number"
+      ? `${value}${config.separators.picks}${statConfig.maxValue}`
+      : `${statConfig.prefix}${value}${statConfig.suffix}`;
+
+    return {
+      key: statConfig.key,
+      label: statConfig.label,
+      value: valueText,
+      className: statConfig.className
+    };
+  });
+}
+
+/**
+ * Creates the render model for one crate tile.
+ * @param {BonusPrize} prize
+ * @param {number} index
+ * @param {BonusRoundState} bonusState
+ * @param {typeof BONUS_UI_CONFIG} [config]
+ * @returns {{ariaLabel: string, className: string, iconKey: string, indexLabel: string, isRevealed: boolean, rewardClassName: string, rewardLabel: string, title: string, valueText: string, metaText: string}}
+ */
+function createBonusCrateViewModel(prize, index, bonusState, config = BONUS_UI_CONFIG) {
+  const safePrize = prize || {
+    type: config.fallbackRewardType,
+    label: config.rewardTypes[config.fallbackRewardType].label,
+    value: 0
+  };
+  const isRevealed = Boolean(bonusState.revealedCrates[index]);
+  const rewardConfig = getBonusRewardUiConfig(safePrize.type, config);
+  const indexLabel = `${config.crate.indexLabel} ${index + config.crate.indexBase}`;
+  const rewardLabel = typeof safePrize.label === "string" ? safePrize.label : rewardConfig.label;
+  const valueText = isRevealed ? formatBonusPrizeValue(safePrize, rewardConfig) : config.crate.hiddenValueText;
+  const title = isRevealed ? rewardLabel : config.crate.hiddenTitle;
+  const metaText = isRevealed ? config.crate.revealedMeta : config.crate.hiddenMeta;
+  const ariaFragments = isRevealed
+    ? [indexLabel, rewardLabel, `${config.crate.ariaRevealedPrefix} ${valueText}`]
+    : [indexLabel, config.crate.ariaHiddenSuffix];
+
+  return {
+    ariaLabel: ariaFragments.join(config.separators.aria),
+    className: getBonusCrateStateClasses({ isRevealed }, config),
+    iconKey: isRevealed ? rewardConfig.iconKey : config.crate.hiddenIconKey,
+    indexLabel,
+    isRevealed,
+    rewardClassName: rewardConfig.className,
+    rewardLabel,
+    title,
+    valueText,
+    metaText
+  };
+}
+
+/**
+ * Validates the minimum bonus state shape needed by the modal renderer.
+ * @param {BonusRoundState | null} bonusState
+ * @param {typeof BONUS_UI_CONFIG} [config]
+ * @returns {boolean}
+ */
+function isValidBonusRoundState(bonusState, config = BONUS_UI_CONFIG) {
+  const isValid = Boolean(
+    bonusState
+    && Array.isArray(bonusState.prizes)
+    && Array.isArray(bonusState.revealedCrates)
+    && Number.isFinite(Number(bonusState.totalCoins))
+    && Number.isFinite(Number(bonusState.freeSpinsAwarded))
+    && Number.isFinite(Number(bonusState.bonusMultiplier))
+    && Number.isFinite(Number(bonusState.picksMade))
+  );
+
+  if (!isValid) {
+    console.warn(config.messages.invalidState, bonusState);
+  }
+
+  return isValid;
+}
+
+/**
+ * Finds the required bonus modal nodes without throwing when markup is missing.
+ * @param {typeof BONUS_UI_CONFIG} [config]
+ * @returns {{overlay: HTMLElement, status: HTMLElement, crates: HTMLElement} | null}
+ */
+function getBonusRoundElements(config = BONUS_UI_CONFIG) {
+  if (typeof document === "undefined") {
+    return null;
+  }
+
+  const overlay = document.getElementById(config.elementIds.overlay);
+  const status = document.getElementById(config.elementIds.status);
+  const crates = document.getElementById(config.elementIds.crates);
+
+  if (!overlay || !status || !crates) {
+    console.warn(config.messages.missingElement, config.elementIds);
+    return null;
+  }
+
+  return { overlay, status, crates };
+}
+
+/**
+ * Renders the bonus status stat tiles.
+ * @param {HTMLElement} statusElement
+ * @param {BonusRoundState} bonusState
+ * @param {typeof BONUS_UI_CONFIG} [config]
+ * @returns {void}
+ */
+function renderBonusStatus(statusElement, bonusState, config = BONUS_UI_CONFIG) {
+  const stats = createBonusStatusViewModel(bonusState, config);
+  statusElement.className = [config.classNames.status, config.classNames.statusGrid].join(config.separators.className);
+  statusElement.innerHTML = stats.map((stat) => `
+    <div class="${escapeHtml(config.classNames.stat)} ${escapeHtml(stat.className)}" data-bonus-stat="${escapeHtml(stat.key)}">
+      <span class="${escapeHtml(config.classNames.statLabel)}">${escapeHtml(stat.label)}</span>
+      <strong class="${escapeHtml(config.classNames.statValue)}">${escapeHtml(stat.value)}</strong>
+    </div>
+  `).join("");
+}
+
+/**
+ * Builds one crate button element for the bonus modal.
+ * @param {BonusPrize} prize
+ * @param {number} index
+ * @param {BonusRoundState} bonusState
+ * @param {typeof BONUS_UI_CONFIG} [config]
+ * @returns {HTMLButtonElement}
+ */
+function createBonusCrateButton(prize, index, bonusState, config = BONUS_UI_CONFIG) {
+  const viewModel = createBonusCrateViewModel(prize, index, bonusState, config);
+  const button = document.createElement("button");
+
+  button.className = viewModel.className;
+  button.type = "button";
+  button.disabled = viewModel.isRevealed;
+  button.dataset.crateIndex = String(index);
+  button.dataset.rewardType = prize && typeof prize.type === "string" ? prize.type : config.fallbackRewardType;
+  button.dataset.rewardIcon = viewModel.iconKey;
+  button.setAttribute("aria-label", viewModel.ariaLabel);
+  button.setAttribute("aria-pressed", String(viewModel.isRevealed));
+  button.innerHTML = `
+    <span class="${escapeHtml(config.classNames.crateContent)} ${escapeHtml(viewModel.rewardClassName)}">
+      <span class="${escapeHtml(config.classNames.crateTopline)}">${escapeHtml(viewModel.indexLabel)}</span>
+      ${createBonusIconMarkup(viewModel.iconKey, config)}
+      <span class="${escapeHtml(config.classNames.crateTitle)}">${escapeHtml(viewModel.title)}</span>
+      <strong class="${escapeHtml(config.classNames.crateValue)}">${escapeHtml(viewModel.valueText)}</strong>
+      <span class="${escapeHtml(config.classNames.crateMeta)}">${escapeHtml(viewModel.metaText)}</span>
+    </span>
+  `;
+
+  return button;
+}
+
+/**
+ * Renders the full crate grid for the current bonus state.
+ * @param {HTMLElement} crateContainer
+ * @param {BonusRoundState} bonusState
+ * @param {typeof BONUS_UI_CONFIG} [config]
+ * @returns {void}
+ */
+function renderBonusCrates(crateContainer, bonusState, config = BONUS_UI_CONFIG) {
+  crateContainer.innerHTML = "";
+
+  bonusState.prizes.forEach((prize, index) => {
+    crateContainer.appendChild(createBonusCrateButton(prize, index, bonusState, config));
+  });
+}
+
+/**
+ * Toggles a configured visual state class on a crate button.
+ * @param {Element | null} target
+ * @param {string} stateKey
+ * @param {boolean} isActive
+ * @param {typeof BONUS_UI_CONFIG} [config]
+ * @returns {void}
+ */
+function toggleBonusCrateInteractionState(target, stateKey, isActive, config = BONUS_UI_CONFIG) {
+  const button = target && typeof target.closest === "function" ? target.closest(config.selectors.crateButton) : null;
+
+  if (!button || button.disabled) {
+    return;
+  }
+
+  button.classList.toggle(getBonusCrateStateClass(stateKey, config), isActive);
+}
+
+/**
+ * Handles pointer hover state for crate buttons.
+ * @param {PointerEvent} event
+ * @param {boolean} isActive
+ * @returns {void}
+ */
+function handleBonusCratePointerState(event, isActive) {
+  toggleBonusCrateInteractionState(event.target, BONUS_CRATE_STATE_KEYS.hover, isActive);
+}
+
+/**
+ * Handles keyboard focus state for crate buttons.
+ * @param {FocusEvent} event
+ * @param {boolean} isActive
+ * @returns {void}
+ */
+function handleBonusCrateFocusState(event, isActive) {
+  toggleBonusCrateInteractionState(event.target, BONUS_CRATE_STATE_KEYS.focus, isActive);
 }
 
 /**
@@ -2673,49 +3229,44 @@ function setSettingsOpen(isOpen) {
 /**
  * Opens or closes the bonus overlay.
  * @param {boolean} isOpen
+ * @returns {void}
  */
 function setBonusOpen(isOpen) {
-  const overlay = document.getElementById("bonusOverlay");
-  overlay.classList.toggle("show", isOpen);
+  const bonusElements = getBonusRoundElements();
+
+  if (!bonusElements) {
+    return;
+  }
+
+  const { overlay } = bonusElements;
+  overlay.classList.toggle(BONUS_UI_CONFIG.classNames.overlayVisible, isOpen);
   overlay.setAttribute("aria-hidden", String(!isOpen));
 }
 
 /**
  * Renders bonus-round status and crate state.
+ * @returns {void}
  */
 function renderBonusRound() {
   const bonusState = state.bonusRound;
-  if (!bonusState) {
+
+  if (!isValidBonusRoundState(bonusState)) {
     return;
   }
 
-  const crateContainer = document.getElementById("bonusCrates");
-  const bonusStatus = document.getElementById("bonusStatus");
-  crateContainer.innerHTML = "";
+  const bonusElements = getBonusRoundElements();
 
-  bonusStatus.textContent = `Total ${bonusState.totalCoins} | Free Spins +${bonusState.freeSpinsAwarded} | Bonus x${bonusState.bonusMultiplier} | Picks ${bonusState.picksMade}/${BONUS_CONFIG.maxPicks}`;
+  if (!bonusElements) {
+    return;
+  }
 
-  bonusState.prizes.forEach((prize, index) => {
-    const button = document.createElement("button");
-    const isRevealed = bonusState.revealedCrates[index];
-    button.className = "crate-button";
-    button.type = "button";
-    button.dataset.crateIndex = String(index);
-    button.textContent = isRevealed
-      ? (prize.type === "coins" ? `${prize.label}: ${prize.value}` : `${prize.label}${prize.value > 0 ? `: ${prize.value}` : ""}`)
-      : `Crate ${index + 1}`;
-
-    if (isRevealed) {
-      button.disabled = true;
-      button.classList.add("revealed");
-    }
-
-    crateContainer.appendChild(button);
-  });
+  renderBonusStatus(bonusElements.status, bonusState);
+  renderBonusCrates(bonusElements.crates, bonusState);
 }
 
 /**
  * Starts the pick-a-crate bonus round.
+ * @returns {void}
  */
 function startBonusRound() {
   state.isBonusActive = true;
@@ -2737,6 +3288,7 @@ function startBonusRound() {
 
 /**
  * Finalizes the bonus round and applies its rewards.
+ * @returns {void}
  */
 function finishBonusRound() {
   const bonusState = state.bonusRound;
@@ -2763,6 +3315,7 @@ function finishBonusRound() {
 /**
  * Applies a selected crate prize to the active bonus round.
  * @param {number} crateIndex
+ * @returns {void}
  */
 function resolveBonusPick(crateIndex) {
   const bonusState = state.bonusRound;
@@ -2771,7 +3324,7 @@ function resolveBonusPick(crateIndex) {
   }
 
   const prize = bonusState.prizes[crateIndex];
-  const crateButtons = Array.from(document.querySelectorAll(".crate-button"));
+  const crateButtons = Array.from(document.querySelectorAll(BONUS_UI_CONFIG.selectors.crateButton));
   const button = crateButtons[crateIndex];
 
   if (!button || button.disabled || bonusState.revealedCrates[crateIndex]) {
@@ -2780,8 +3333,8 @@ function resolveBonusPick(crateIndex) {
 
   bonusState.revealedCrates[crateIndex] = true;
   button.disabled = true;
-  button.classList.add("revealed");
-  button.textContent = prize.type === "coins" ? `${prize.label}: ${prize.value}` : `${prize.label}${prize.value > 0 ? `: ${prize.value}` : ""}`;
+  button.className = getBonusCrateStateClasses({ isSelected: true, isRevealed: true, isDisabled: true });
+  button.setAttribute("aria-pressed", "true");
 
   if (prize.type === "coins") {
     bonusState.totalCoins += prize.value * bonusState.bonusMultiplier;
@@ -3231,6 +3784,7 @@ function changeBet(direction) {
 
 /**
  * Wires UI events once the document is ready.
+ * @returns {void}
  */
 function initializeGame() {
   try {
@@ -3269,14 +3823,21 @@ function initializeGame() {
       volumeMuteButton.addEventListener("click", handleVolumeMuteButtonClick);
     }
 
-    document.getElementById("bonusCrates").addEventListener("click", (event) => {
-      const button = event.target.closest(".crate-button");
-      if (!button) {
-        return;
-      }
+    const bonusCrates = document.getElementById(BONUS_UI_CONFIG.elementIds.crates);
+    if (bonusCrates) {
+      bonusCrates.addEventListener(BONUS_UI_CONFIG.events.click, (event) => {
+        const button = event.target.closest(BONUS_UI_CONFIG.selectors.crateButton);
+        if (!button) {
+          return;
+        }
 
-      resolveBonusPick(Number(button.dataset.crateIndex));
-    });
+        resolveBonusPick(Number(button.dataset.crateIndex));
+      });
+      bonusCrates.addEventListener(BONUS_UI_CONFIG.events.pointerOver, (event) => handleBonusCratePointerState(event, true));
+      bonusCrates.addEventListener(BONUS_UI_CONFIG.events.pointerOut, (event) => handleBonusCratePointerState(event, false));
+      bonusCrates.addEventListener(BONUS_UI_CONFIG.events.focusIn, (event) => handleBonusCrateFocusState(event, true));
+      bonusCrates.addEventListener(BONUS_UI_CONFIG.events.focusOut, (event) => handleBonusCrateFocusState(event, false));
+    }
     mountKeyboardShortcuts();
 
     if (dailyReward) {
@@ -3295,7 +3856,9 @@ if (typeof document !== "undefined") {
 if (typeof module !== "undefined") {
   module.exports = {
     AUDIO_SETTINGS_CONFIG,
+    BONUS_CRATE_STATE_KEYS,
     BONUS_CONFIG,
+    BONUS_UI_CONFIG,
     FREE_SPIN_CONFIG,
     GAME_LIMITS,
     JACKPOT_CONFIG,
@@ -3319,6 +3882,8 @@ if (typeof module !== "undefined") {
     countSymbol,
     createDateKey,
     createBoardFeatureGrid,
+    createBonusCrateViewModel,
+    createBonusStatusViewModel,
     createBonusPrizes,
     createBootsSymbolArt,
     createCactusSymbolArt,
@@ -3328,6 +3893,7 @@ if (typeof module !== "undefined") {
     createMatchedPositions,
     createNearMissPlanForPattern,
     createRewardFeedbackContent,
+    createBonusIconMarkup,
     createDynamiteSymbolArt,
     createInlineSymbolSvg,
     createSymbolArtContent,
@@ -3336,6 +3902,11 @@ if (typeof module !== "undefined") {
     escapeHtml,
     evaluateBoard,
     getEffectiveVolume,
+    getBonusCrateStateClass,
+    getBonusCrateStateClasses,
+    getBonusRewardClassName,
+    getBonusRewardIconKey,
+    getBonusRewardUiConfig,
     getSpinTiming,
     getSymbolDefinition,
     getSymbolArtAttributes,
@@ -3345,6 +3916,7 @@ if (typeof module !== "undefined") {
     getVolumeButtonState,
     hasContiguousMatchedPositions,
     isNearMissEligible,
+    isValidBonusRoundState,
     isKeyboardShortcutBlockedTarget,
     isSpinShortcutEvent,
     isValidSpinSpeedMode,

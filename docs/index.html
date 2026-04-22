@@ -54,10 +54,13 @@
       </div>
     </div>
     <div id="bonusOverlay" class="settings-overlay bonus-overlay" aria-hidden="true">
-      <div class="settings-panel bonus-panel" role="dialog" aria-modal="true" aria-labelledby="bonusTitle">
-        <h2 id="bonusTitle">Pick-A-Crate Bonus</h2>
-        <p id="bonusStatus" class="bonus-status">Choose up to three crates.</p>
-        <div id="bonusCrates" class="bonus-crates" aria-label="Bonus crates"></div>
+      <div class="settings-panel bonus-panel" role="dialog" aria-modal="true" aria-labelledby="bonusTitle" aria-describedby="bonusStatus">
+        <h2 id="bonusTitle" class="bonus-title">
+          <span class="bonus-title-kicker">Bonus Round</span>
+          <span>Pick-A-Crate</span>
+        </h2>
+        <div id="bonusStatus" class="bonus-status bonus-status-grid" aria-live="polite">Choose up to three crates.</div>
+        <div id="bonusCrates" class="bonus-crates" role="group" aria-label="Bonus crates"></div>
       </div>
     </div>
     <main class="game-shell" aria-labelledby="game-title">
