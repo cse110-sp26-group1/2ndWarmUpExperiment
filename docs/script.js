@@ -341,6 +341,89 @@ const PAYLINE_RENDER_CONFIG = {
   reelWindowId: "reelWindow"
 };
 
+const BADGE_ART_CONFIG = Object.freeze({
+  attributeName: "data-badge-text",
+  symbolId: "badge",
+  text: "S"
+});
+
+const COWBOY_ART_CONFIG = Object.freeze({
+  symbolId: "cowboy",
+  crownDetailAttribute: "data-icon-detail",
+  crownDetailValue: "hat-crown",
+  faceDetailValue: "hat-face",
+  palette: {
+    hatBase: "#6e4228",
+    hatShadow: "#4f2d1b",
+    hatHighlight: "#b87f47",
+    band: "#d6a154",
+    face: "#c78a62",
+    faceShadow: "#a86d49",
+    shirt: "#325880",
+    shirtShadow: "#1c2f4c",
+    neckerchief: "#a33328",
+    outline: "#3d2115"
+  }
+});
+
+const CACTUS_ART_CONFIG = Object.freeze({
+  symbolId: "cactus",
+  bodyDetailAttribute: "data-icon-detail",
+  bodyDetailValue: "cactus-body",
+  armDetailValue: "cactus-arm",
+  palette: {
+    bodyLight: "#63c662",
+    bodyMid: "#3d9d47",
+    bodyDark: "#28703a",
+    outline: "#16492b",
+    spine: "#dfe7b0",
+    ground: "#8e5b2c",
+    groundShadow: "#5f3817"
+  }
+});
+
+/**
+ * @typedef {Object} SymbolArtConfig
+ * @property {string} viewBox
+ * @property {string} className
+ * @property {string} title
+ */
+
+/**
+ * @typedef {Object} SymbolArtContent
+ * @property {string} markup
+ * @property {"svg" | "text"} mode
+ */
+
+/** @type {Record<string, SymbolArtConfig>} */
+const SYMBOL_ART_CONFIG = {
+  cowboy: {
+    viewBox: "0 0 96 80",
+    className: "slot-icon slot-icon-cowboy",
+    title: "Cowboy hat"
+  },
+  cactus: {
+    viewBox: "0 0 96 80",
+    className: "slot-icon slot-icon-cactus",
+    title: "Cactus"
+  },
+  boots: {
+    viewBox: "0 0 96 80",
+    className: "slot-icon slot-icon-boots",
+    title: "Cowboy boots"
+  },
+  [SYMBOL_IDS.dynamite]: {
+    viewBox: "0 0 96 80",
+    className: "slot-icon slot-icon-dynamite",
+    title: "Dynamite"
+  },
+  [SYMBOL_IDS.wild]: {
+    viewBox: "0 0 96 80",
+    className: "slot-icon slot-icon-wild",
+    title: "Wild"
+  }
+};
+
 /** @type {Record<string, SymbolDefinition>} */
 const SYMBOL_MAP = SYMBOLS.reduce((map, symbol) => {
   map[symbol.id] = symbol;
@@ -382,6 +465,253 @@ state.boardFeatures = createBoardFeatureGrid(state.board);
  */
 function buildWeightedSymbolIds(symbols) {
   return symbols.flatMap((symbol) => Array.from({ length: symbol.weight }, () => symbol.id));
+}
+
+/**
+ * Escapes text content before it is inserted into HTML.
+ * @param {string} value
+ * @returns {string}
+ */
+function escapeHtml(value) {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll("\"", "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+/**
+ * Resolves a symbol definition while guarding against invalid ids.
+ * @param {string} symbolId
+ * @returns {SymbolDefinition}
+ */
+function getSymbolDefinition(symbolId) {
+  const fallbackSymbol = SYMBOLS[0];
+
+  if (typeof symbolId !== "string") {
+    console.warn("Expected a string symbol id while rendering.", symbolId);
+    return fallbackSymbol;
+  }
+
+  if (!SYMBOL_MAP[symbolId]) {
+    console.warn(`Unknown symbol id "${symbolId}" while rendering. Falling back to ${fallbackSymbol.id}.`);
+    return fallbackSymbol;
+  }
+
+  return SYMBOL_MAP[symbolId];
+}
+
+/**
+ * Wraps SVG symbol markup in a consistent inline SVG shell.
+ * @param {SymbolArtConfig} config
+ * @param {string} bodyMarkup
+ * @param {string} symbolId
+ * @returns {string}
+ */
+function createInlineSymbolSvg(config, bodyMarkup, symbolId) {
+  return `
+    <svg class="${escapeHtml(config.className)}" viewBox="${escapeHtml(config.viewBox)}" role="img" aria-label="${escapeHtml(config.title)}" data-symbol-icon="${escapeHtml(symbolId)}" xmlns="http://www.w3.org/2000/svg">
+      ${bodyMarkup}
+    </svg>
+  `;
+}
+
+/**
+ * Builds the wild sign art.
+ * @param {SymbolArtConfig} config
+ * @returns {string}
+ */
+function createWildSymbolArt(config) {
+  return createInlineSymbolSvg(config, `
+    <path d="M16 18 L78 12 L84 22 L82 60 L18 66 L12 56 L14 24 Z" fill="#5a2d18" stroke="#c38a43" stroke-width="3.5" stroke-linejoin="round" />
+    <path d="M20 22 L76 18 L78 56 L20 60 Z" fill="#733a1f" opacity="0.55" />
+    <path d="M23 24 L72 20" stroke="#b87b43" stroke-width="2.5" stroke-linecap="round" opacity="0.5" />
+    <path d="M25 51 C39 44 52 44 69 48" stroke="#a86433" stroke-width="2.4" stroke-linecap="round" fill="none" opacity="0.62" />
+    <path d="M19 18 L28 10 L36 18" fill="#d3a055" stroke="#81501f" stroke-width="2" stroke-linejoin="round" />
+    <path d="M68 13 L76 6 L84 14" fill="#d3a055" stroke="#81501f" stroke-width="2" stroke-linejoin="round" />
+    <text x="48" y="45" text-anchor="middle" fill="#ffeaa3" font-size="18" font-weight="900" font-family="Georgia, serif" letter-spacing="2.2">WILD</text>
+  `, SYMBOL_IDS.wild);
+}
+
+/**
+ * Builds the cowboy hat art in the same western SVG style as the other refreshed symbols.
+ * @param {SymbolArtConfig} config
+ * @returns {string}
+ */
+function createCowboySymbolArt(config) {
+  return createInlineSymbolSvg(config, `
+    <g transform="translate(4 4)">
+      <path d="M18 26 C20 13 32 7 46 7 C61 7 73 13 75 26 C72 34 61 40 46 40 C32 40 21 34 18 26 Z" fill="${COWBOY_ART_CONFIG.palette.hatBase}" stroke="${COWBOY_ART_CONFIG.palette.outline}" stroke-width="2.6" stroke-linejoin="round" data-icon-detail="${COWBOY_ART_CONFIG.crownDetailValue}" />
+      <path d="M26 24 C28 16 36 12 46 12 C57 12 65 16 67 24 C65 30 57 34 46 34 C36 34 28 30 26 24 Z" fill="${COWBOY_ART_CONFIG.palette.hatHighlight}" opacity="0.78" />
+      <path d="M20 28 C27 22 38 20 46 20 C56 20 66 23 74 28 C68 23 60 19 46 19 C34 19 25 22 20 28 Z" fill="${COWBOY_ART_CONFIG.palette.hatShadow}" opacity="0.92" />
+      <path d="M29 28 C34 26 40 25 46 25 C52 25 58 26 63 28 L61 32 C55 30 51 29 46 29 C41 29 37 30 31 32 Z" fill="${COWBOY_ART_CONFIG.palette.band}" stroke="${COWBOY_ART_CONFIG.palette.outline}" stroke-width="1.5" stroke-linejoin="round" />
+      <path d="M4 39 C11 31 22 29 34 30 C40 24 48 23 58 25 C66 27 72 31 81 34 C86 36 88 41 84 44 C76 49 67 50 57 48 C49 53 37 54 27 52 C18 50 10 47 6 44 C2 42 1 40 4 39 Z" fill="${COWBOY_ART_CONFIG.palette.hatBase}" stroke="${COWBOY_ART_CONFIG.palette.outline}" stroke-width="2.8" stroke-linejoin="round" />
+      <path d="M10 40 C19 35 29 35 39 38 C47 34 57 34 68 37 C74 39 79 39 84 38 C80 42 73 44 66 43 C57 41 49 40 40 43 C30 46 20 45 10 40 Z" fill="${COWBOY_ART_CONFIG.palette.hatShadow}" opacity="0.85" />
+      <path d="M40 39 C42 36 46 35 50 36 C53 37 55 39 56 43 C54 48 51 52 47 56 C45 58 42 58 40 56 C36 52 33 48 32 43 C33 40 36 38 40 39 Z" fill="${COWBOY_ART_CONFIG.palette.face}" stroke="${COWBOY_ART_CONFIG.palette.outline}" stroke-width="2" stroke-linejoin="round" data-icon-detail="${COWBOY_ART_CONFIG.faceDetailValue}" />
+      <path d="M37 44 C40 41 44 40 47 40 C50 40 53 41 55 43 C52 42 49 42 46 42 C43 42 40 42 37 44 Z" fill="${COWBOY_ART_CONFIG.palette.faceShadow}" opacity="0.72" />
+      <path d="M37 58 L45 48 L54 58 Z" fill="${COWBOY_ART_CONFIG.palette.neckerchief}" stroke="${COWBOY_ART_CONFIG.palette.outline}" stroke-width="1.8" stroke-linejoin="round" />
+      <path d="M30 70 C34 61 39 57 46 57 C53 57 58 61 62 70" fill="${COWBOY_ART_CONFIG.palette.shirt}" stroke="${COWBOY_ART_CONFIG.palette.outline}" stroke-width="2.2" stroke-linecap="round" />
+      <path d="M34 67 C38 61 42 59 46 59 C50 59 54 61 58 67" fill="none" stroke="${COWBOY_ART_CONFIG.palette.shirtShadow}" stroke-width="2.2" stroke-linecap="round" opacity="0.7" />
+    </g>
+  `, COWBOY_ART_CONFIG.symbolId);
+}
+
+/**
+ * Builds the cactus art with attached arms and shared body shading.
+ * @param {SymbolArtConfig} config
+ * @returns {string}
+ */
+function createCactusSymbolArt(config) {
+  return createInlineSymbolSvg(config, `
+    <g transform="translate(10 4)">
+      <path d="M28 73 C30 63 31 48 31 36 C31 31 35 27 40 27 C45 27 49 31 49 36 C49 48 50 63 52 73 Z" fill="${CACTUS_ART_CONFIG.palette.bodyMid}" stroke="${CACTUS_ART_CONFIG.palette.outline}" stroke-width="2.6" stroke-linejoin="round" data-icon-detail="${CACTUS_ART_CONFIG.bodyDetailValue}" />
+      <path d="M22 42 C17 42 13 38 13 33 L13 25 C13 20 17 16 22 16 C27 16 31 20 31 25 L31 55 C31 60 27 64 22 64 C17 64 13 60 13 55 L13 48" fill="${CACTUS_ART_CONFIG.palette.bodyMid}" stroke="${CACTUS_ART_CONFIG.palette.outline}" stroke-width="2.6" stroke-linejoin="round" data-icon-detail="${CACTUS_ART_CONFIG.armDetailValue}" />
+      <path d="M58 47 C63 47 67 43 67 38 L67 30 C67 25 63 21 58 21 C53 21 49 25 49 30 L49 60 C49 65 53 69 58 69 C63 69 67 65 67 60 L67 53" fill="${CACTUS_ART_CONFIG.palette.bodyMid}" stroke="${CACTUS_ART_CONFIG.palette.outline}" stroke-width="2.6" stroke-linejoin="round" data-icon-detail="${CACTUS_ART_CONFIG.armDetailValue}" />
+      <path d="M17 60 C21 59 25 57 28 54 L28 28 C28 24 30 20 34 18 C36 17 38 17 40 17 L40 73 L28 73 C27 64 23 61 17 60 Z" fill="${CACTUS_ART_CONFIG.palette.bodyLight}" opacity="0.78" />
+      <path d="M49 73 L40 73 L40 17 C43 17 45 18 48 20 C51 23 52 26 52 31 L52 58 C57 59 61 61 64 65 C61 64 57 65 54 67 C52 68 51 70 49 73 Z" fill="${CACTUS_ART_CONFIG.palette.bodyDark}" opacity="0.56" />
+      <path d="M19 23 C21 21 23 21 25 23" fill="none" stroke="${CACTUS_ART_CONFIG.palette.spine}" stroke-width="1.5" stroke-linecap="round" />
+      <path d="M19 34 C21 32 23 32 25 34" fill="none" stroke="${CACTUS_ART_CONFIG.palette.spine}" stroke-width="1.5" stroke-linecap="round" />
+      <path d="M38 22 C40 20 42 20 44 22" fill="none" stroke="${CACTUS_ART_CONFIG.palette.spine}" stroke-width="1.5" stroke-linecap="round" />
+      <path d="M38 35 C40 33 42 33 44 35" fill="none" stroke="${CACTUS_ART_CONFIG.palette.spine}" stroke-width="1.5" stroke-linecap="round" />
+      <path d="M38 48 C40 46 42 46 44 48" fill="none" stroke="${CACTUS_ART_CONFIG.palette.spine}" stroke-width="1.5" stroke-linecap="round" />
+      <path d="M57 28 C59 26 61 26 63 28" fill="none" stroke="${CACTUS_ART_CONFIG.palette.spine}" stroke-width="1.5" stroke-linecap="round" />
+      <path d="M57 39 C59 37 61 37 63 39" fill="none" stroke="${CACTUS_ART_CONFIG.palette.spine}" stroke-width="1.5" stroke-linecap="round" />
+      <path d="M24 76 C34 72 47 72 57 76" fill="none" stroke="${CACTUS_ART_CONFIG.palette.groundShadow}" stroke-width="5" stroke-linecap="round" opacity="0.42" />
+      <path d="M20 75 C31 70 49 70 61 75" fill="none" stroke="${CACTUS_ART_CONFIG.palette.ground}" stroke-width="3" stroke-linecap="round" />
+    </g>
+  `, CACTUS_ART_CONFIG.symbolId);
+}
+
+/**
+ * Builds the dynamite art from the provided western reference.
+ * @param {SymbolArtConfig} config
+ * @returns {string}
+ */
+function createDynamiteSymbolArt(config) {
+  return createInlineSymbolSvg(config, `
+    <g transform="translate(6 2)">
+      <path d="M18 26 C17 14 24 10 31 12 C39 14 44 20 47 27" fill="none" stroke="#2d2622" stroke-width="5" stroke-linecap="round" />
+      <path d="M18 26 C17 14 24 10 31 12 C39 14 44 20 47 27" fill="none" stroke="#cfd2d6" stroke-width="2.6" stroke-linecap="round" />
+      <path d="M4 26 L9 20 L11 25 L18 22 L16 29 L23 32 L15 35 L16 42 L10 37 L5 42 L5 35 L-2 34 L4 29 L-1 24 Z" fill="#ffe252" stroke="#62310c" stroke-width="2" stroke-linejoin="round" data-icon-detail="spark" />
+      <path d="M34 12 L55 10 C59 10 62 12 64 15 L74 59 C75 64 71 69 66 69 L48 70 C43 70 39 67 38 62 L28 19 C27 15 30 12 34 12 Z" fill="#d81a12" stroke="#5c0d0d" stroke-width="2.4" stroke-linejoin="round" />
+      <ellipse cx="45" cy="15" rx="11" ry="5" fill="#ff412c" stroke="#6f0f0f" stroke-width="2" />
+      <path d="M37 18 L55 66" stroke="#ff8b79" stroke-opacity="0.32" stroke-width="4" stroke-linecap="round" />
+    </g>
+  `, SYMBOL_IDS.dynamite);
+}
+
+/**
+ * Builds the cowboy boots art from the provided western reference.
+ * @param {SymbolArtConfig} config
+ * @returns {string}
+ */
+function createBootsSymbolArt(config) {
+  return createInlineSymbolSvg(config, `
+    <g transform="translate(2 0)">
+      <path d="M18 13 C18 9 21 7 24 7 L35 7 C41 7 45 11 45 17 L45 41 C45 50 38 56 29 56 L21 56 C16 56 12 52 12 47 L12 18 C12 16 14 13 18 13 Z" fill="#93603b" stroke="#4c2c1b" stroke-width="2.2" />
+      <path d="M49 11 C49 8 52 6 56 6 L68 6 C74 6 78 10 78 16 L78 45 C78 51 73 56 67 56 L56 56 C49 56 44 51 44 44 L44 16 C44 13 46 11 49 11 Z" fill="#93603b" stroke="#4c2c1b" stroke-width="2.2" />
+      <path d="M14 49 C22 47 30 49 37 54 C42 58 44 61 49 61 L60 61 C63 61 65 63 64 66 C61 74 53 77 40 75 L20 73 C13 72 8 68 8 62 C8 57 10 52 14 49 Z" fill="#5c3925" stroke="#3f2417" stroke-width="2.2" />
+      <path d="M40 54 C49 48 57 47 67 50 C74 52 79 56 85 57 C89 58 90 62 87 65 C81 70 70 72 55 71 C48 70 43 67 39 62 Z" fill="#8b5838" stroke="#4c2c1b" stroke-width="2.2" />
+      <path d="M16 16 L39 16 L39 44 L16 44 Z" fill="#b67d53" opacity="0.14" />
+      <path d="M48 14 L72 14 L72 44 L48 44 Z" fill="#b67d53" opacity="0.14" />
+      <path d="M11 64 L24 64 L20 74 L7 74 Z" fill="#654130" stroke="#3f2417" stroke-width="2" />
+      <path d="M10 62 L26 62" stroke="#c69a6b" stroke-width="1.6" stroke-linecap="round" opacity="0.45" />
+      <path d="M19 19 C23 16 27 16 31 20" fill="none" stroke="#d9a06b" stroke-width="1.8" stroke-linecap="round" opacity="0.8" />
+      <path d="M18 27 C22 24 26 24 30 28" fill="none" stroke="#d9a06b" stroke-width="1.8" stroke-linecap="round" opacity="0.75" />
+      <path d="M52 17 C56 14 61 14 65 18" fill="none" stroke="#d9a06b" stroke-width="1.8" stroke-linecap="round" opacity="0.8" />
+      <path d="M51 26 C56 23 61 23 66 27" fill="none" stroke="#d9a06b" stroke-width="1.8" stroke-linecap="round" opacity="0.75" />
+      <path d="M48 53 C55 48 64 47 73 50" fill="none" stroke="#3f2417" stroke-width="2" stroke-linecap="round" opacity="0.68" />
+      <path d="M47 58 C55 53 65 52 75 55" fill="none" stroke="#3f2417" stroke-width="2" stroke-linecap="round" opacity="0.68" />
+    </g>
+  `, "boots");
+}
+
+/** @type {Record<string, (config: SymbolArtConfig) => string>} */
+const SYMBOL_ART_BUILDERS = {
+  cowboy: createCowboySymbolArt,
+  cactus: createCactusSymbolArt,
+  boots: createBootsSymbolArt,
+  [SYMBOL_IDS.dynamite]: createDynamiteSymbolArt,
+  [SYMBOL_IDS.wild]: createWildSymbolArt
+};
+
+/**
+ * Builds the markup used inside a symbol art container.
+ * @param {SymbolDefinition} symbol
+ * @returns {{markup: string, mode: "svg" | "text"}}
+ */
+function createSymbolArtContent(symbol) {
+  const builder = SYMBOL_ART_BUILDERS[symbol.id];
+
+  if (!builder) {
+    const artText = symbol.className === "symbol-letter" || symbol.className === "symbol-number" ? symbol.label : "";
+    return {
+      markup: escapeHtml(artText),
+      mode: "text"
+    };
+  }
+
+  try {
+    return {
+      markup: builder(SYMBOL_ART_CONFIG[symbol.id]),
+      mode: "svg"
+    };
+  } catch (error) {
+    console.warn(`Failed to build art for symbol "${symbol.id}".`, error);
+    return {
+      markup: escapeHtml(symbol.label),
+      mode: "text"
+    };
+  }
+}
+
+/**
+ * Resolves the visible badge text for sheriff symbol art.
+ * @param {SymbolDefinition} symbol
+ * @returns {string}
+ */
+function resolveBadgeArtText(symbol) {
+  if (symbol.id !== BADGE_ART_CONFIG.symbolId) {
+    return "";
+  }
+
+  if (typeof BADGE_ART_CONFIG.text === "string" && BADGE_ART_CONFIG.text.trim().length === 1) {
+    return BADGE_ART_CONFIG.text.trim();
+  }
+
+  const fallbackText = typeof symbol.label === "string" ? symbol.label.trim().charAt(0).toUpperCase() : "";
+  console.warn(`Invalid badge art text configured for symbol "${symbol.id}". Falling back to label initial.`);
+  return fallbackText;
+}
+
+/**
+ * Builds extra HTML attributes for a symbol art container.
+ * @param {SymbolDefinition} symbol
+ * @returns {Record<string, string>}
+ */
+function getSymbolArtAttributes(symbol) {
+  const badgeText = resolveBadgeArtText(symbol);
+
+  if (!badgeText) {
+    return {};
+  }
+
+  return {
+    [BADGE_ART_CONFIG.attributeName]: badgeText
+  };
+}
+
+/**
+ * Serializes HTML attributes for insertion into inline markup.
+ * @param {Record<string, string>} attributes
+ * @returns {string}
+ */
+function serializeHtmlAttributes(attributes) {
+  return Object.entries(attributes)
+    .filter(([, value]) => typeof value === "string" && value.length > 0)
+    .map(([name, value]) => `${escapeHtml(name)}="${escapeHtml(value)}"`)
+    .join(" ");
 }
 
 /**
@@ -1281,10 +1611,12 @@ function awardJackpot(tier) {
  * @returns {HTMLDivElement}
  */
 function createSymbolCell(symbolId, reel, row, feature = null) {
-  const symbol = SYMBOL_MAP[symbolId];
+  const symbol = getSymbolDefinition(symbolId);
   const cell = document.createElement("div");
-  const artText = symbol.className === "symbol-letter" || symbol.className === "symbol-number" ? symbol.label : "";
   const multiplierBadge = feature && feature.multiplier > 1 ? `<span class="multiplier-badge">x${feature.multiplier}</span>` : "";
+  const art = createSymbolArtContent(symbol);
+  const artAttributes = serializeHtmlAttributes(getSymbolArtAttributes(symbol));
+  const artAttributeMarkup = artAttributes ? ` ${artAttributes}` : "";
 
   cell.className = `symbol-cell ${symbol.className}`;
   cell.dataset.reel = String(reel);
@@ -1293,7 +1625,7 @@ function createSymbolCell(symbolId, reel, row, feature = null) {
   cell.innerHTML = `
     ${multiplierBadge}
     <div class="symbol-stack">
-      <span class="symbol-art" aria-hidden="true">${artText}</span>
+      <span class="symbol-art" data-art-mode="${art.mode}" aria-hidden="true"${artAttributeMarkup}>${art.markup}</span>
       <span class="symbol-label">${symbol.label}</span>
     </div>
   `;
@@ -2580,8 +2912,12 @@ if (typeof module !== "undefined") {
     STORAGE_KEYS,
     MULTIPLIER_CONFIG,
     NEAR_MISS_CONFIG,
+    BADGE_ART_CONFIG,
+    CACTUS_ART_CONFIG,
+    COWBOY_ART_CONFIG,
     PAYLINES,
     PAYLINE_RENDER_CONFIG,
+    SYMBOL_ART_CONFIG,
     SYMBOLS,
     applyRewardToState,
     clampBet,
@@ -2589,12 +2925,22 @@ if (typeof module !== "undefined") {
     createDateKey,
     createBoardFeatureGrid,
     createBonusPrizes,
+    createBootsSymbolArt,
+    createCactusSymbolArt,
+    createCowboySymbolArt,
     createEmptyFeatureGrid,
     createMatchedPositions,
     createNearMissPlanForPattern,
     createRewardFeedbackContent,
+    createDynamiteSymbolArt,
+    createInlineSymbolSvg,
+    createSymbolArtContent,
+    createWildSymbolArt,
     determineJackpotTier,
+    escapeHtml,
     evaluateBoard,
+    getSymbolDefinition,
+    getSymbolArtAttributes,
     getFreeSpinAward,
     getLeftToRightMatch,
     getLineMultiplier,
@@ -2605,6 +2951,8 @@ if (typeof module !== "undefined") {
     isValidWinPosition,
     isWildHorizontalLine,
     resolveDailyLoginReward,
+    resolveBadgeArtText,
+    serializeHtmlAttributes,
     selectNearMissPlan,
     shouldHandleSpinShortcut,
     shouldGrantDailyReward,
