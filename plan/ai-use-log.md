@@ -41,6 +41,7 @@
 - [x] Free spins (triggered by scatter)
 - [x] Bonus round (choice-based mechanic)
 - [x] Jackpot system (large win condition)
+- [x] Paylines
 
 ---
 
@@ -50,7 +51,6 @@
 - [ ] Cluster pay system (if implemented)
 - [x] Near-miss outcomes
 - [x] Progressive rewards / scaling bonuses
-
 ---
 
 ### UX & Feedback
@@ -799,3 +799,122 @@ If Yes:
 - What was manually changed:
 - Why manual editing was necessary:
 - Whether the fix introduced new issues or resolved the problem:
+---
+# Prompt 11 Entry
+## Prompt Used:
+## Role
+You are a careful senior engineer working in my existing online slot machine project (vanilla JavaScript).
+
+## Goal
+Fix payline behavior so that a winning payline only highlights or draws across the exact winning pattern and reel positions that are actually part of the evaluated win. Right now, the payline incorrectly spans across too many columns, often full width, even when the matching sequence ends earlier.
+
+## Payline Background
+Use this to guide the fix:
+
+A payline is a defined path across the reels, such as horizontal, diagonal, zigzag, or similar. A win is evaluated by checking symbol sequences along active paylines. Most slot rules are left-to-right contiguous, meaning the match starts on the leftmost reel and continues until the first reel where the match breaks. Wilds may substitute per the existing rules. Scatters and bonuses may trigger differently, often anywhere. The UI must not imply a longer match than what the evaluation actually counted.
+
+## What “Correct Payline Behavior” Means
+- A payline should only highlight or draw across the symbols and columns that are actually part of the evaluated win.
+- If the winning combination is only on reels 1–3, the payline must stop at reel 3.
+- If reel 4 or reel 5 does not continue the match, the payline must not continue across those columns.
+- If the game uses left-to-right contiguous matching, the payline stops at the first reel where the sequence breaks.
+- If wild substitution already exists, preserve that logic exactly as it already works.
+- Do not visually imply a 4-reel or 5-reel hit when the evaluated result is only a 3-reel hit.
+- If multiple paylines win, each payline must reflect only its own true matched positions. Do not draw full-width lines unless the evaluated match truly spans all reels.
+
+## Scope
+- Fix both the win-result mapping and the visual rendering if needed.
+- The rendered payline, including line overlay, highlighted cells, and any win markers, must be driven by the actual winning positions returned by the evaluation logic.
+- Do not draw a full-row or full-width payline unless the evaluated winning pattern truly spans all of those reels.
+
+## Non-Negotiable Constraints
+- Preserve all existing functionality.
+- Do not change any existing behavior that currently works.
+- Do not refactor or rewrite unrelated architecture.
+- Do not change payout math, symbol odds, RNG behavior, or game rules unless strictly necessary to fix this payline-span bug.
+- Please do not introduce anything additional beyond these changes.
+- No new dependencies unless absolutely required. Prefer none.
+
+## Engineering Requirements
+- Add JSDoc documentation for all new or changed functions.
+- Keep linting clean.
+- Do not use hard-coded values. Use config objects or constants where appropriate.
+- Keep the implementation modular, with pure logic separated from DOM where possible.
+- Add error handling for invalid win data, missing DOM nodes, or inconsistent payline state without breaking current gameplay.
+
+## Testing Requirements
+For every change, add or extend:
+- Unit tests
+- End-to-end tests with Playwright
+- Regression tests
+- Smoke tests with Playwright
+
+All tests must be written in `test.spec.js`, and you must not delete any existing tests.
+
+## Required Test Coverage
+
+### Unit Tests (Logic Level)
+- Invariant: For every winning line result, `matchedPositions.length` must equal `matchLength` and must be contiguous from reel 1 through reel `matchLength`, with no gaps and no reels beyond `matchLength`.
+- Invariant: No matched position may exist on a reel index greater than `matchLength`. Prove no overrun.
+- Invariant: For any payline win, the first non-matching reel must stop the match. Prove break-on-first-miss.
+- Wild substitution: Add cases where wild participates in reels 1 through N and ensure `matchLength` is correct, and that `matchedPositions` identifies the exact cells that were counted.
+- Multi-line wins: Construct a board state where two or more paylines win simultaneously with different `matchLength` values, such as one 3-of-a-kind and one 5-of-a-kind, and assert each line has correct independent `matchedPositions` and does not inherit width from the other.
+- Edge cases:
+  - Exactly 2 matches should not render a win if current rules require 3 or more. Assert no `matchedPositions` are produced for 2-of-a-kind.
+  - Invalid win data returned to the renderer should be ignored safely with no throw.
+  - If paylines include diagonal or zigzag patterns, verify row indices for `matchedPositions` follow the correct per-reel payline path and are not always on the same row.
+- Property-style deterministic loop: Over many randomly generated boards using a seeded RNG, assert:
+  - any win returned never highlights beyond its own `matchLength`
+  - `matchedPositions` are unique with no duplicates within a single line
+  - renderer input schema is always valid, or gracefully handled
+
+### Integration / Render-Level Tests (DOM)
+- Given a mocked win result with `matchLength = 3`, verify the DOM only applies highlight classes or line segments to reels 1 through 3 and does not touch reels 4 through 5.
+- Verify that clearing highlights between spins fully removes prior highlighted cells, with no stale highlights.
+- Verify multiple paylines can be displayed or animated without overwriting each other’s highlights, or if they are shown sequentially, ensure sequencing is correct and still respects `matchLength`.
+
+### Playwright End-to-End Tests
+- Smoke: Page loads, no console errors, and spin works.
+- Deterministic near-reel test: Force or stub a known board outcome, via existing test hooks or exports, where a 3-reel win occurs. Spin once and assert:
+  - payout amount matches existing logic and remains unchanged
+  - only the correct 3 reels or cells are highlighted
+  - the payline overlay stops early
+- Deterministic longer win: Force a 5-reel win and assert the highlight spans all 5 reels. This ensures full-length wins still work.
+- Regression: Run a spin that produces a loss and assert no payline is drawn or highlighted.
+- Regression: Multiple winning paylines in one spin render correctly, either simultaneously or in the current UI style, and each line is clipped to its own `matchLength`.
+- Accessibility and regression: Fast-play or skip, if present, still works and does not break payline drawing, including no full-width flash.
+
+## Implementation Guidance
+- Reuse the exact existing click, spin, evaluate, and render pipeline.
+- Prefer returning explicit win segments from evaluation. For each winning payline, include:
+  - `matchLength`
+  - `matchedPositions`, meaning exact grid coordinates for reels and rows
+- Update rendering so it only highlights or draws over `matchedPositions`, and stops at `matchLength`.
+
+## Deliverables
+- Show exactly which files were changed and provide diffs.
+- Briefly explain why the fix guarantees the payline only spans the actual winning pattern.
+- Provide a quick manual test checklist.
+
+## Ambiguity Handling
+If anything is ambiguous, infer the safest default that preserves current behavior and keep the changes minimal and localized.
+## Result
+### List what it got correct:
+- Successfully implemented correct payline functionality
+
+### List what it didn't get correct:
+- None
+### List any unexpected behavior or errors it introduced:
+- None
+
+### Manual Edits (Only if LLM failed after attempts)
+- [x] None
+- [ ] Yes
+
+
+If Yes:
+
+- What was manually changed:
+- Why manual editing was necessary:
+- Whether the fix introduced new issues or resolved the problem:
+---

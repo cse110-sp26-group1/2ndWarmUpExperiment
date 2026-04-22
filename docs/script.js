@@ -20,6 +20,8 @@
  * @property {string} lineName
  * @property {string} symbolId
  * @property {number} count
+ * @property {number} matchLength
+ * @property {{reel: number, row: number}[]} matchedPositions
  * @property {number} baseWin
  * @property {number} payout
  * @property {number} multiplier
@@ -332,6 +334,12 @@ const NEAR_MISS_CONFIG = {
 const HORIZONTAL_PAYLINES = ["top", "middle", "bottom"];
 const NEAR_MISS_SPECIAL_SYMBOL_IDS = [SYMBOL_IDS.wild, SYMBOL_IDS.scatter, SYMBOL_IDS.dynamite];
 const NEAR_MISS_FRAME_NAMES = ["tease", "slide", "settle"];
+
+const PAYLINE_RENDER_CONFIG = {
+  segmentClass: "payline-segment",
+  activeSegmentClass: "active",
+  reelWindowId: "reelWindow"
+};
 
 /** @type {Record<string, SymbolDefinition>} */
 const SYMBOL_MAP = SYMBOLS.reduce((map, symbol) => {
@@ -775,6 +783,64 @@ function getLeftToRightMatch(lineSymbols) {
 }
 
 /**
+ * Builds the exact contiguous reel positions counted for a payline match.
+ * @param {number[]} paylineRows
+ * @param {number} matchLength
+ * @returns {{reel: number, row: number}[]}
+ */
+function createMatchedPositions(paylineRows, matchLength) {
+  if (!Array.isArray(paylineRows) || !Number.isInteger(matchLength) || matchLength < 1) {
+    return [];
+  }
+
+  return paylineRows.slice(0, matchLength).map((row, reel) => ({ reel, row }));
+}
+
+/**
+ * Checks whether a grid coordinate can map to a rendered slot cell.
+ * @param {{reel?: number, row?: number} | null | undefined} position
+ * @returns {boolean}
+ */
+function isValidWinPosition(position) {
+  return Boolean(
+    position
+    && Number.isInteger(position.reel)
+    && Number.isInteger(position.row)
+    && position.reel >= 0
+    && position.reel < GAME_LIMITS.reelCount
+    && position.row >= 0
+    && position.row < GAME_LIMITS.rowCount
+  );
+}
+
+/**
+ * Checks whether payline positions exactly cover reels 0 through matchLength - 1.
+ * @param {{reel?: number, row?: number}[]} positions
+ * @param {number} matchLength
+ * @returns {boolean}
+ */
+function hasContiguousMatchedPositions(positions, matchLength) {
+  if (!Array.isArray(positions) || !Number.isInteger(matchLength) || positions.length !== matchLength) {
+    return false;
+  }
+
+  const seenKeys = new Set();
+  return positions.every((position, index) => {
+    if (!isValidWinPosition(position) || position.reel !== index) {
+      return false;
+    }
+
+    const key = `${position.reel}:${position.row}`;
+    if (seenKeys.has(key)) {
+      return false;
+    }
+
+    seenKeys.add(key);
+    return true;
+  });
+}
+
+/**
  * Counts a symbol anywhere on the board.
  * @param {string[][]} board
  * @param {string} symbolId
@@ -1071,6 +1137,7 @@ function evaluateBoard(board, bet, options = {}) {
 
     const symbol = SYMBOL_MAP[match.symbolId];
     const baseWin = bet * symbol.payouts[match.count];
+    const matchedPositions = createMatchedPositions(payline.rows, match.count);
     const multiplier = getLineMultiplier(
       lineSymbols,
       payline.rows,
@@ -1084,6 +1151,8 @@ function evaluateBoard(board, bet, options = {}) {
       lineName: payline.name,
       symbolId: match.symbolId,
       count: match.count,
+      matchLength: match.count,
+      matchedPositions,
       baseWin,
       payout,
       multiplier
@@ -1091,8 +1160,8 @@ function evaluateBoard(board, bet, options = {}) {
     totalWin += payout;
     appliedMultiplier = Math.max(appliedMultiplier, multiplier);
 
-    for (let reel = 0; reel < match.count; reel += 1) {
-      winningCellKeys.add(`${reel}:${payline.rows[reel]}`);
+    for (const position of matchedPositions) {
+      winningCellKeys.add(`${position.reel}:${position.row}`);
     }
 
     if (HORIZONTAL_PAYLINES.includes(payline.name)) {
@@ -1406,26 +1475,163 @@ function updateDisplays() {
 function clearWinHighlights() {
   document.querySelectorAll(".symbol-cell.win").forEach((cell) => cell.classList.remove("win"));
   document.querySelectorAll(".payline-guide.active").forEach((line) => line.classList.remove("active"));
+  document.querySelectorAll(`.${PAYLINE_RENDER_CONFIG.segmentClass}`).forEach((line) => line.remove());
 }
 
 /**
- * Highlights winning symbols and horizontal paylines.
- * @param {WinResult} result
+ * Filters a mixed position list down to valid slot coordinates.
+ * @param {unknown} positions
+ * @returns {{reel: number, row: number}[]}
+ */
+function getRenderableWinPositions(positions) {
+  if (!Array.isArray(positions)) {
+    return [];
+  }
+
+  return positions.filter(isValidWinPosition);
+}
+
+/**
+ * Returns the exact matched payline positions if the win data is internally consistent.
+ * @param {Partial<LineWin>} lineWin
+ * @returns {{lineName: string, matchLength: number, matchedPositions: {reel: number, row: number}[]} | null}
+ */
+function getRenderableLineWin(lineWin) {
+  if (!lineWin || typeof lineWin.lineName !== "string") {
+    return null;
+  }
+
+  const matchLength = Number.isInteger(lineWin.matchLength) ? lineWin.matchLength : lineWin.count;
+  const matchedPositions = Array.isArray(lineWin.matchedPositions) ? lineWin.matchedPositions : [];
+
+  if (!hasContiguousMatchedPositions(matchedPositions, matchLength)) {
+    return null;
+  }
+
+  return {
+    lineName: lineWin.lineName,
+    matchLength,
+    matchedPositions
+  };
+}
+
+/**
+ * Gets a rendered cell element for a validated slot coordinate.
+ * @param {{reel: number, row: number}} position
+ * @returns {Element | null}
+ */
+function getRenderedCell(position) {
+  if (!isValidWinPosition(position)) {
+    return null;
+  }
+
+  return document.querySelector(`[data-reel="${position.reel}"][data-row="${position.row}"]`);
+}
+
+/**
+ * Calculates a cell center relative to its payline container.
+ * @param {Element} cell
+ * @param {DOMRect} containerRect
+ * @returns {{x: number, y: number}}
+ */
+function getCellCenter(cell, containerRect) {
+  const cellRect = cell.getBoundingClientRect();
+
+  return {
+    x: cellRect.left - containerRect.left + cellRect.width / 2,
+    y: cellRect.top - containerRect.top + cellRect.height / 2
+  };
+}
+
+/**
+ * Builds one overlay segment between two adjacent matched payline cells.
+ * @param {Element} container
+ * @param {{lineName: string, matchLength: number}} lineWin
+ * @param {{reel: number, row: number}} fromPosition
+ * @param {{reel: number, row: number}} toPosition
+ * @param {number} segmentIndex
+ * @returns {HTMLDivElement | null}
+ */
+function createPaylineSegment(container, lineWin, fromPosition, toPosition, segmentIndex) {
+  const fromCell = getRenderedCell(fromPosition);
+  const toCell = getRenderedCell(toPosition);
+
+  if (!container || !fromCell || !toCell) {
+    return null;
+  }
+
+  const containerRect = container.getBoundingClientRect();
+  const start = getCellCenter(fromCell, containerRect);
+  const end = getCellCenter(toCell, containerRect);
+  const deltaX = end.x - start.x;
+  const deltaY = end.y - start.y;
+  const segment = document.createElement("div");
+
+  segment.className = `${PAYLINE_RENDER_CONFIG.segmentClass} ${PAYLINE_RENDER_CONFIG.activeSegmentClass}`;
+  segment.dataset.lineName = lineWin.lineName;
+  segment.dataset.matchLength = String(lineWin.matchLength);
+  segment.dataset.segmentIndex = String(segmentIndex);
+  segment.dataset.startReel = String(fromPosition.reel);
+  segment.dataset.endReel = String(toPosition.reel);
+  segment.style.left = `${start.x}px`;
+  segment.style.top = `${start.y}px`;
+  segment.style.width = `${Math.hypot(deltaX, deltaY)}px`;
+  segment.style.transform = `rotate(${Math.atan2(deltaY, deltaX)}rad)`;
+
+  return segment;
+}
+
+/**
+ * Draws payline overlay segments from exact matched positions only.
+ * @param {Partial<LineWin>[]} lineWins
+ */
+function renderPaylineSegments(lineWins) {
+  const container = document.getElementById(PAYLINE_RENDER_CONFIG.reelWindowId);
+
+  if (!container || !Array.isArray(lineWins)) {
+    return;
+  }
+
+  for (const lineWin of lineWins) {
+    const renderableLineWin = getRenderableLineWin(lineWin);
+
+    if (!renderableLineWin) {
+      continue;
+    }
+
+    for (let index = 1; index < renderableLineWin.matchedPositions.length; index += 1) {
+      const segment = createPaylineSegment(
+        container,
+        renderableLineWin,
+        renderableLineWin.matchedPositions[index - 1],
+        renderableLineWin.matchedPositions[index],
+        index - 1
+      );
+
+      if (segment) {
+        container.appendChild(segment);
+      }
+    }
+  }
+}
+
+/**
+ * Highlights winning symbols and exact payline segments.
+ * @param {Partial<WinResult> | null | undefined} result
  */
 function highlightWins(result) {
-  for (const cell of result.winningCells) {
-    const element = document.querySelector(`[data-reel="${cell.reel}"][data-row="${cell.row}"]`);
+  if (!result || typeof result !== "object") {
+    return;
+  }
+
+  for (const cell of getRenderableWinPositions(result.winningCells)) {
+    const element = getRenderedCell(cell);
     if (element) {
       element.classList.add("win");
     }
   }
 
-  for (const lineName of result.activeHorizontalLines) {
-    const line = document.querySelector(`.payline-guide-${lineName}`);
-    if (line) {
-      line.classList.add("active");
-    }
-  }
+  renderPaylineSegments(Array.isArray(result.lineWins) ? result.lineWins : []);
 }
 
 /**
@@ -2375,6 +2581,7 @@ if (typeof module !== "undefined") {
     MULTIPLIER_CONFIG,
     NEAR_MISS_CONFIG,
     PAYLINES,
+    PAYLINE_RENDER_CONFIG,
     SYMBOLS,
     applyRewardToState,
     clampBet,
@@ -2383,6 +2590,7 @@ if (typeof module !== "undefined") {
     createBoardFeatureGrid,
     createBonusPrizes,
     createEmptyFeatureGrid,
+    createMatchedPositions,
     createNearMissPlanForPattern,
     createRewardFeedbackContent,
     determineJackpotTier,
@@ -2390,9 +2598,11 @@ if (typeof module !== "undefined") {
     getFreeSpinAward,
     getLeftToRightMatch,
     getLineMultiplier,
+    hasContiguousMatchedPositions,
     isNearMissEligible,
     isKeyboardShortcutBlockedTarget,
     isSpinShortcutEvent,
+    isValidWinPosition,
     isWildHorizontalLine,
     resolveDailyLoginReward,
     selectNearMissPlan,

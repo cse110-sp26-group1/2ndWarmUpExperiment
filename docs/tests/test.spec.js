@@ -50,6 +50,36 @@ const TEST_CONFIG = {
     ["cowboy", "boots", "a", "j", "q"],
     ["a", "q", "j", "10", "k"]
   ],
+  twoMatchBoard: [
+    ["badge", "wild", "q", "badge", "10"],
+    ["cowboy", "boots", "a", "j", "q"],
+    ["a", "q", "j", "10", "k"]
+  ],
+  wildThreeReelBoard: [
+    ["wild", "badge", "wild", "q", "10"],
+    ["cowboy", "boots", "a", "j", "q"],
+    ["a", "q", "j", "10", "k"]
+  ],
+  wildFourReelBoard: [
+    ["wild", "wild", "cowboy", "cowboy", "10"],
+    ["badge", "boots", "a", "j", "q"],
+    ["a", "q", "j", "10", "k"]
+  ],
+  fiveReelWinBoard: [
+    ["badge", "badge", "badge", "badge", "badge"],
+    ["cowboy", "boots", "a", "j", "q"],
+    ["a", "q", "j", "10", "k"]
+  ],
+  multiLineMixedBoard: [
+    ["badge", "badge", "badge", "q", "10"],
+    ["cowboy", "cowboy", "cowboy", "cowboy", "cowboy"],
+    ["a", "q", "j", "10", "k"]
+  ],
+  zigzagWinBoard: [
+    ["wanted", "a", "k", "q", "10"],
+    ["j", "wanted", "q", "a", "k"],
+    ["10", "wild", "wanted", "j", "q"]
+  ],
   jackpotBoard: [
     ["badge", "badge", "badge", "badge", "badge"],
     ["wild", "wild", "wild", "wild", "wild"],
@@ -91,6 +121,48 @@ async function settleBoard(page, board, usedFreeSpin = false) {
     renderBoard(state.board, state.boardFeatures);
     settleSpin(state.board, state.boardFeatures, nextUsedFreeSpin);
   }, { nextBoard: board, nextUsedFreeSpin: usedFreeSpin });
+}
+
+/**
+ * Asserts that a line win has exact contiguous matched positions.
+ * @param {object} lineWin
+ * @param {number} expectedLength
+ * @param {{reel: number, row: number}[]} expectedPositions
+ */
+function expectLineWinPositions(lineWin, expectedLength, expectedPositions) {
+  expect(lineWin.matchLength).toBe(expectedLength);
+  expect(lineWin.count).toBe(expectedLength);
+  expect(lineWin.matchedPositions).toEqual(expectedPositions);
+  expect(lineWin.matchedPositions).toHaveLength(lineWin.matchLength);
+  expect(lineWin.matchedPositions.every((position, index) => position.reel === index)).toBe(true);
+  expect(lineWin.matchedPositions.some((position) => position.reel >= lineWin.matchLength)).toBe(false);
+}
+
+/**
+ * Creates a deterministic pseudo-random number generator.
+ * @param {number} seed
+ * @returns {() => number}
+ */
+function createSeededRandom(seed) {
+  let value = seed;
+
+  return () => {
+    value = (value * 1664525 + 1013904223) % 4294967296;
+    return value / 4294967296;
+  };
+}
+
+/**
+ * Builds a deterministic board using the game's configured symbol set.
+ * @param {() => number} random
+ * @returns {string[][]}
+ */
+function createSeededBoard(random) {
+  const symbolIds = game.SYMBOLS.map((symbol) => symbol.id);
+
+  return Array.from({ length: game.GAME_LIMITS.rowCount }, () => (
+    Array.from({ length: game.GAME_LIMITS.reelCount }, () => symbolIds[Math.floor(random() * symbolIds.length)])
+  ));
 }
 
 /**
@@ -158,6 +230,118 @@ test.describe("unit", () => {
         multiplier: 1
       })
     ]);
+    expectLineWinPositions(result.lineWins[0], 3, [
+      { reel: 0, row: 0 },
+      { reel: 1, row: 0 },
+      { reel: 2, row: 0 }
+    ]);
+  });
+
+  test("keeps matched positions contiguous and stops at the first non-matching reel", async () => {
+    const result = game.evaluateBoard([
+      ["badge", "badge", "wild", "q", "badge"],
+      ["cowboy", "boots", "a", "j", "q"],
+      ["a", "q", "j", "10", "k"]
+    ], TEST_CONFIG.bet);
+    const [lineWin] = result.lineWins;
+
+    expect(lineWin.lineName).toBe("top");
+    expectLineWinPositions(lineWin, 3, [
+      { reel: 0, row: 0 },
+      { reel: 1, row: 0 },
+      { reel: 2, row: 0 }
+    ]);
+    expect(lineWin.matchedPositions.some((position) => position.reel > lineWin.matchLength - 1)).toBe(false);
+  });
+
+  test("does not produce line matched positions for two-of-kind misses", async () => {
+    const result = game.evaluateBoard(TEST_CONFIG.twoMatchBoard, TEST_CONFIG.bet);
+
+    expect(result.lineWins).toEqual([]);
+    expect(result.winningCells).toEqual([]);
+    expect(result.totalWin).toBe(0);
+  });
+
+  test("preserves wild substitution while reporting exact counted cells", async () => {
+    const threeReelResult = game.evaluateBoard(TEST_CONFIG.wildThreeReelBoard, TEST_CONFIG.bet);
+    const fourReelResult = game.evaluateBoard(TEST_CONFIG.wildFourReelBoard, TEST_CONFIG.bet);
+
+    expectLineWinPositions(threeReelResult.lineWins[0], 3, [
+      { reel: 0, row: 0 },
+      { reel: 1, row: 0 },
+      { reel: 2, row: 0 }
+    ]);
+    expect(threeReelResult.lineWins[0].symbolId).toBe("badge");
+
+    expectLineWinPositions(fourReelResult.lineWins[0], 4, [
+      { reel: 0, row: 0 },
+      { reel: 1, row: 0 },
+      { reel: 2, row: 0 },
+      { reel: 3, row: 0 }
+    ]);
+    expect(fourReelResult.lineWins[0].symbolId).toBe("cowboy");
+  });
+
+  test("keeps simultaneous payline wins independent when lengths differ", async () => {
+    const result = game.evaluateBoard(TEST_CONFIG.multiLineMixedBoard, TEST_CONFIG.bet);
+    const topWin = result.lineWins.find((lineWin) => lineWin.lineName === "top");
+    const middleWin = result.lineWins.find((lineWin) => lineWin.lineName === "middle");
+
+    expectLineWinPositions(topWin, 3, [
+      { reel: 0, row: 0 },
+      { reel: 1, row: 0 },
+      { reel: 2, row: 0 }
+    ]);
+    expectLineWinPositions(middleWin, 5, [
+      { reel: 0, row: 1 },
+      { reel: 1, row: 1 },
+      { reel: 2, row: 1 },
+      { reel: 3, row: 1 },
+      { reel: 4, row: 1 }
+    ]);
+  });
+
+  test("follows diagonal and zigzag payline rows in matched positions", async () => {
+    const result = game.evaluateBoard(TEST_CONFIG.zigzagWinBoard, TEST_CONFIG.bet);
+    const vWin = result.lineWins.find((lineWin) => lineWin.lineName === "v");
+
+    expectLineWinPositions(vWin, 3, [
+      { reel: 0, row: 0 },
+      { reel: 1, row: 1 },
+      { reel: 2, row: 2 }
+    ]);
+  });
+
+  test("validates matched position invariants over deterministic random boards", async () => {
+    const random = createSeededRandom(20260422);
+
+    for (let index = 0; index < 120; index += 1) {
+      const result = game.evaluateBoard(createSeededBoard(random), TEST_CONFIG.bet);
+
+      for (const lineWin of result.lineWins) {
+        expect(lineWin.matchedPositions).toHaveLength(lineWin.matchLength);
+        expect(game.hasContiguousMatchedPositions(lineWin.matchedPositions, lineWin.matchLength)).toBe(true);
+        expect(lineWin.matchedPositions.some((position) => position.reel >= lineWin.matchLength)).toBe(false);
+
+        const uniqueKeys = new Set(lineWin.matchedPositions.map((position) => `${position.reel}:${position.row}`));
+        expect(uniqueKeys.size).toBe(lineWin.matchedPositions.length);
+      }
+    }
+  });
+
+  test("rejects inconsistent payline position schemas defensively", async () => {
+    expect(game.hasContiguousMatchedPositions([
+      { reel: 0, row: 0 },
+      { reel: 2, row: 0 },
+      { reel: 3, row: 0 }
+    ], 3)).toBe(false);
+    expect(game.hasContiguousMatchedPositions([
+      { reel: 0, row: 0 },
+      { reel: 1, row: 0 },
+      { reel: 2, row: 0 },
+      { reel: 3, row: 0 }
+    ], 3)).toBe(false);
+    expect(game.isValidWinPosition({ reel: game.GAME_LIMITS.reelCount, row: 0 })).toBe(false);
   });
 
   test("detects jackpot tiers from board patterns", async () => {
@@ -366,6 +550,135 @@ test.describe("smoke", () => {
   });
 });
 
+test.describe("payline rendering", () => {
+  test.beforeEach(async ({ page }) => {
+    await gotoGame(page);
+    await page.evaluate(({ board }) => {
+      renderBoard(board, createEmptyFeatureGrid());
+      clearWinHighlights();
+    }, { board: TEST_CONFIG.standardWinBoard });
+  });
+
+  test("mocked three-reel win highlights and draws only through reel 3", async ({ page }) => {
+    await page.evaluate(() => {
+      highlightWins({
+        winningCells: [
+          { reel: 0, row: 0 },
+          { reel: 1, row: 0 },
+          { reel: 2, row: 0 }
+        ],
+        lineWins: [
+          {
+            lineName: "top",
+            count: 3,
+            matchLength: 3,
+            matchedPositions: [
+              { reel: 0, row: 0 },
+              { reel: 1, row: 0 },
+              { reel: 2, row: 0 }
+            ]
+          }
+        ]
+      });
+    });
+
+    await expect(page.locator(".symbol-cell.win")).toHaveCount(3);
+    await expect(page.locator('[data-reel="0"][data-row="0"]')).toHaveClass(/win/);
+    await expect(page.locator('[data-reel="1"][data-row="0"]')).toHaveClass(/win/);
+    await expect(page.locator('[data-reel="2"][data-row="0"]')).toHaveClass(/win/);
+    await expect(page.locator('[data-reel="3"][data-row="0"]')).not.toHaveClass(/win/);
+    await expect(page.locator('[data-reel="4"][data-row="0"]')).not.toHaveClass(/win/);
+    await expect(page.locator(".payline-guide.active")).toHaveCount(0);
+
+    const segmentData = await page.locator(".payline-segment").evaluateAll((segments) => (
+      segments.map((segment) => ({
+        lineName: segment.getAttribute("data-line-name"),
+        startReel: segment.getAttribute("data-start-reel"),
+        endReel: segment.getAttribute("data-end-reel"),
+        matchLength: segment.getAttribute("data-match-length")
+      }))
+    ));
+
+    expect(segmentData).toEqual([
+      { lineName: "top", startReel: "0", endReel: "1", matchLength: "3" },
+      { lineName: "top", startReel: "1", endReel: "2", matchLength: "3" }
+    ]);
+  });
+
+  test("clearing highlights removes stale cells and payline segments", async ({ page }) => {
+    await page.evaluate(() => {
+      const result = evaluateBoard([
+        ["badge", "badge", "badge", "q", "10"],
+        ["cowboy", "boots", "a", "j", "q"],
+        ["a", "q", "j", "10", "k"]
+      ], 10);
+
+      highlightWins(result);
+      clearWinHighlights();
+    });
+
+    await expect(page.locator(".symbol-cell.win")).toHaveCount(0);
+    await expect(page.locator(".payline-segment")).toHaveCount(0);
+    await expect(page.locator(".payline-guide.active")).toHaveCount(0);
+  });
+
+  test("multiple paylines render independently without inheriting span length", async ({ page }) => {
+    await page.evaluate(({ board }) => {
+      renderBoard(board, createEmptyFeatureGrid());
+      highlightWins(evaluateBoard(board, 10));
+    }, { board: TEST_CONFIG.multiLineMixedBoard });
+
+    const segmentData = await page.locator(".payline-segment").evaluateAll((segments) => (
+      segments.map((segment) => ({
+        lineName: segment.getAttribute("data-line-name"),
+        endReel: Number(segment.getAttribute("data-end-reel"))
+      }))
+    ));
+    const topSegments = segmentData.filter((segment) => segment.lineName === "top");
+    const middleSegments = segmentData.filter((segment) => segment.lineName === "middle");
+
+    expect(topSegments).toHaveLength(2);
+    expect(Math.max(...topSegments.map((segment) => segment.endReel))).toBe(2);
+    expect(middleSegments).toHaveLength(4);
+    expect(Math.max(...middleSegments.map((segment) => segment.endReel))).toBe(4);
+  });
+
+  test("invalid renderer win data is ignored without throwing", async ({ page }) => {
+    const summary = await page.evaluate(() => {
+      try {
+        highlightWins({
+          winningCells: [{ reel: 99, row: 0 }, null],
+          lineWins: [
+            {
+              lineName: "top",
+              count: 5,
+              matchLength: 3,
+              matchedPositions: [
+                { reel: 0, row: 0 },
+                { reel: 2, row: 0 },
+                { reel: 4, row: 0 }
+              ]
+            }
+          ]
+        });
+        return {
+          threw: false,
+          highlightedCells: document.querySelectorAll(".symbol-cell.win").length,
+          segments: document.querySelectorAll(".payline-segment").length
+        };
+      } catch (_error) {
+        return { threw: true, highlightedCells: -1, segments: -1 };
+      }
+    });
+
+    expect(summary).toEqual({
+      threw: false,
+      highlightedCells: 0,
+      segments: 0
+    });
+  });
+});
+
 test.describe("end-to-end", () => {
   test.beforeEach(async ({ page }) => {
     await gotoGame(page);
@@ -395,6 +708,84 @@ test.describe("end-to-end", () => {
     await expect(page.locator("#statusMessage")).toHaveText("No win this round");
     await expect(page.locator("#balanceDisplay")).toHaveText("990");
     await expect(page.locator(".near-miss-tease")).toHaveCount(0);
+    await expect(page.locator(".symbol-cell.win")).toHaveCount(0);
+    await expect(page.locator(".payline-segment")).toHaveCount(0);
+  });
+
+  test("deterministic three-reel win keeps payout math and clips the overlay", async ({ page }) => {
+    await page.evaluate(({ board }) => {
+      NEAR_MISS_CONFIG.enabled = false;
+      createBoard = () => board.map((row) => [...row]);
+      rollRandomJackpotTier = () => null;
+      updateDisplays();
+    }, { board: TEST_CONFIG.standardWinBoard });
+
+    await page.click("#spinButton");
+
+    await expect(page.locator("#spinButton")).toHaveText("Spin");
+    await expect(page.locator("#winPopupAmount")).toHaveText("60");
+    await expect(page.locator("#balanceDisplay")).toHaveText("1050");
+    await expect(page.locator(".symbol-cell.win")).toHaveCount(3);
+    await expect(page.locator('[data-reel="3"][data-row="0"]')).not.toHaveClass(/win/);
+    await expect(page.locator('[data-reel="4"][data-row="0"]')).not.toHaveClass(/win/);
+
+    const maxEndReel = await page.locator(".payline-segment").evaluateAll((segments) => (
+      Math.max(...segments.map((segment) => Number(segment.getAttribute("data-end-reel"))))
+    ));
+
+    await expect(page.locator(".payline-segment")).toHaveCount(2);
+    expect(maxEndReel).toBe(2);
+  });
+
+  test("deterministic five-reel win still spans all reels", async ({ page }) => {
+    await page.evaluate(({ board }) => {
+      NEAR_MISS_CONFIG.enabled = false;
+      createBoard = () => board.map((row) => [...row]);
+      rollRandomJackpotTier = () => null;
+      updateDisplays();
+    }, { board: TEST_CONFIG.fiveReelWinBoard });
+
+    await page.click("#spinButton");
+
+    await expect(page.locator("#spinButton")).toHaveText("Spin");
+    await expect(page.locator("#winPopupAmount")).toHaveText("700");
+    await expect(page.locator("#balanceDisplay")).toHaveText("1690");
+    await expect(page.locator(".symbol-cell.win")).toHaveCount(5);
+    await expect(page.locator(".payline-segment")).toHaveCount(4);
+
+    const maxEndReel = await page.locator(".payline-segment").evaluateAll((segments) => (
+      Math.max(...segments.map((segment) => Number(segment.getAttribute("data-end-reel"))))
+    ));
+
+    expect(maxEndReel).toBe(4);
+  });
+
+  test("multiple winning paylines render with their own clipped lengths", async ({ page }) => {
+    await page.evaluate(({ board }) => {
+      NEAR_MISS_CONFIG.enabled = false;
+      createBoard = () => board.map((row) => [...row]);
+      rollRandomJackpotTier = () => null;
+      updateDisplays();
+    }, { board: TEST_CONFIG.multiLineMixedBoard });
+
+    await page.click("#spinButton");
+
+    await expect(page.locator("#spinButton")).toHaveText("Spin");
+    await expect(page.locator(".symbol-cell.win")).toHaveCount(8);
+
+    const segmentData = await page.locator(".payline-segment").evaluateAll((segments) => (
+      segments.map((segment) => ({
+        lineName: segment.getAttribute("data-line-name"),
+        endReel: Number(segment.getAttribute("data-end-reel"))
+      }))
+    ));
+    const topSegments = segmentData.filter((segment) => segment.lineName === "top");
+    const middleSegments = segmentData.filter((segment) => segment.lineName === "middle");
+
+    expect(topSegments).toHaveLength(2);
+    expect(Math.max(...topSegments.map((segment) => segment.endReel))).toBe(2);
+    expect(middleSegments).toHaveLength(4);
+    expect(Math.max(...middleSegments.map((segment) => segment.endReel))).toBe(4);
   });
 
   test("near-miss paid loss shows tease effect and ends as a loss", async ({ page }) => {
@@ -519,6 +910,34 @@ test.describe("regression", () => {
     await expect(page.locator("#spinButton")).toHaveText("Skip");
     await page.click("#spinButton");
     await expect(page.locator("#spinButton")).toHaveText("Spin");
+  });
+
+  test("skip-to-finish keeps payline drawing clipped to the evaluated match", async ({ page }) => {
+    await page.evaluate(({ board }) => {
+      state.fastPlayEnabled = false;
+      document.getElementById("fastPlayToggle").checked = false;
+      state.balance = 1000;
+      state.bet = 10;
+      state.freeSpins = 0;
+      state.isBonusActive = false;
+      state.bonusRound = null;
+      NEAR_MISS_CONFIG.enabled = false;
+      createBoard = () => board.map((row) => [...row]);
+      rollRandomJackpotTier = () => null;
+      updateDisplays();
+    }, { board: TEST_CONFIG.standardWinBoard });
+
+    await page.click("#spinButton");
+    await expect(page.locator("#spinButton")).toHaveText("Skip");
+    await page.click("#spinButton");
+    await expect(page.locator("#spinButton")).toHaveText("Spin");
+    await expect(page.locator(".payline-segment")).toHaveCount(2);
+
+    const maxEndReel = await page.locator(".payline-segment").evaluateAll((segments) => (
+      Math.max(...segments.map((segment) => Number(segment.getAttribute("data-end-reel"))))
+    ));
+
+    expect(maxEndReel).toBe(2);
   });
 
   test("preserves the keyboard big-win shortcut", async ({ page }) => {
