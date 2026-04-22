@@ -2387,3 +2387,69 @@ If there is a trade-off between reel size and viewport fit, prioritize viewport 
 - [x] None
 - [ ] Yes
 ---
+
+
+# Prompt 24
+
+- The reels still look a little small. theres extra space on the side so try to stretch them horizontally a little bit. keep the same requirements as the last prompts. **Image provided*
+## Non-Negotiable Constraints
+
+- Preserve all existing functionality.
+- Do not change any existing behavior, game logic, RNG, payout math, or animations.
+- Do not refactor unrelated architecture.
+- Do not introduce anything additional beyond this layout change.
+- No new dependencies.
+
+## Engineering Requirements
+
+- Add JSDoc comments to any new or modified JavaScript functions.
+- Do not use hard-coded magic values; use constants or config objects where appropriate.
+- Keep linting clean.
+- Add error handling for any dynamic sizing logic (e.g., missing DOM nodes).
+
+## Testing Requirements
+
+All tests go in `docs/tests/test.spec.js`. Do not delete any existing tests.
+
+### Unit Tests
+- Any JS helper added for dynamic sizing returns correct values given valid and invalid inputs.
+
+### Playwright End-to-End Tests
+- Smoke: page loads at a 1280×800 viewport with no console errors and the spin button is visible and clickable without scrolling.
+- Verify the main game container does not overflow the viewport at 1280×800.
+- Verify the reel grid is larger than it was after the previous fix (assert the reel container height or symbol cell size is greater than the post-fix minimum).
+- Verify a basic spin still completes correctly after the layout change.
+- Regression: existing spin, free-spin, bonus, and jackpot flows are unaffected.
+
+## Deliverables
+
+- Diffs for each changed file.
+- A short explanation of what space was reclaimed and how the reel grid was grown.
+- A quick manual test checklist:
+  - Game fits at 100% zoom on a 1280×800 window with no scrolling
+  - Reel grid and symbol cells are visibly larger than the previous fix
+  - No content clipped or cut off
+  - Spin button visible without scrolling
+  - All existing features still work
+
+---
+
+## Results
+
+### List what it got correct:
+- Reels are a  bigger now.
+
+
+### List what it didn't get correct:
+- None
+
+
+### List any unexpected behavior or errors it introduced:
+
+- None
+
+### Manual Edits (Only if LLM failed after attempts)
+
+- [x] None
+- [ ] Yes
+---

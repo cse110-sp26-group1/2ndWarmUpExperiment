@@ -18,6 +18,7 @@
   --slot-machine-padding-bottom: clamp(18px, 2.2vh, 24px);
   --machine-section-gap: clamp(8px, 1.3vh, 12px);
   --cell-size: clamp(110px, min(9.2vw, 14.75vh), 142px);
+  --reel-column-min-width: clamp(116px, 10vw, 138px);
   --reel-gap: clamp(5px, 0.75vh, 8px);
   --reel-window-padding: clamp(8px, 1vh, 10px);
   --reel-padding: clamp(4px, 0.65vh, 6px);
@@ -246,9 +247,9 @@ h1 {
 .reel-window {
   position: relative;
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, var(--cell-size)));
+  grid-template-columns: repeat(5, minmax(var(--reel-column-min-width), 1fr));
   gap: var(--reel-gap);
-  justify-content: center;
+  justify-content: stretch;
   padding: var(--reel-window-padding);
   overflow: hidden;
   border: var(--reel-window-border-width) solid #211009;
@@ -697,7 +698,7 @@ h1 {
 
 .payline-guide-top {
   top: calc(var(--reel-window-padding) + var(--cell-size) / 2);
-  width: min(100%, calc((var(--cell-size) + (var(--reel-padding) * 2) + (var(--reel-border-width) * 2)) * 5 + (var(--reel-gap) * 4) + (var(--reel-window-padding) * 2)));
+  width: 100%;
   margin-inline: auto;
 }
 
