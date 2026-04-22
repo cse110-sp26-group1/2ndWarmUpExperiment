@@ -63,6 +63,16 @@
  */
 
 /**
+ * @typedef {Object} KeyboardShortcutConfig
+ * @property {string} spinButtonId
+ * @property {string[]} spinKeys
+ * @property {string} closeSettingsKey
+ * @property {string} bigWinKey
+ * @property {string} blockedShortcutSelector
+ * @property {string} editableShortcutSelector
+ */
+
+/**
  * @typedef {Object} SlotState
  * @property {number} balance
  * @property {number} bet
@@ -186,6 +196,32 @@ const RETENTION_CONFIG = {
   }
 };
 
+/** @type {KeyboardShortcutConfig} */
+const KEYBOARD_CONFIG = {
+  spinButtonId: "spinButton",
+  spinKeys: [" ", "Spacebar"],
+  closeSettingsKey: "Escape",
+  bigWinKey: "j",
+  blockedShortcutSelector: [
+    "button",
+    "input",
+    "textarea",
+    "select",
+    "[role='button']",
+    "[role='checkbox']",
+    "[role='combobox']",
+    "[role='menuitem']",
+    "[role='option']",
+    "[role='radio']",
+    "[role='searchbox']",
+    "[role='slider']",
+    "[role='spinbutton']",
+    "[role='switch']",
+    "[role='textbox']"
+  ].join(", "),
+  editableShortcutSelector: "[contenteditable]"
+};
+
 const DATE_KEY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
 /** @type {SymbolDefinition[]} */
@@ -246,6 +282,8 @@ let popupTimeout = 0;
 let bigWinTimeout = 0;
 let rewardFeedbackTimeout = 0;
 let activeSpin = null;
+let keyboardShortcutCleanup = null;
+let pagehideCleanupRegistered = false;
 
 state.board = createBoard();
 state.boardFeatures = createBoardFeatureGrid(state.board);
@@ -1613,6 +1651,168 @@ function handleSpinButtonClick() {
 }
 
 /**
+ * Normalizes an event target to an element that can be selector-matched.
+ * @param {EventTarget | null} target
+ * @returns {Element | null}
+ */
+function getShortcutTargetElement(target) {
+  if (!target || typeof target !== "object") {
+    return null;
+  }
+
+  if (typeof target.closest === "function") {
+    return target;
+  }
+
+  if (target.parentElement && typeof target.parentElement.closest === "function") {
+    return target.parentElement;
+  }
+
+  return null;
+}
+
+/**
+ * Checks whether a keyboard shortcut originated inside editable content.
+ * @param {Element} element
+ * @param {KeyboardShortcutConfig} config
+ * @returns {boolean}
+ */
+function isEditableShortcutTarget(element, config = KEYBOARD_CONFIG) {
+  const editableElement = element.closest(config.editableShortcutSelector);
+
+  if (!editableElement) {
+    return false;
+  }
+
+  if (typeof editableElement.getAttribute !== "function") {
+    return true;
+  }
+
+  return editableElement.getAttribute("contenteditable") !== "false";
+}
+
+/**
+ * Checks whether a keyboard shortcut should yield to focused interactive UI.
+ * @param {EventTarget | null} target
+ * @param {KeyboardShortcutConfig} config
+ * @returns {boolean}
+ */
+function isKeyboardShortcutBlockedTarget(target, config = KEYBOARD_CONFIG) {
+  const element = getShortcutTargetElement(target);
+
+  if (!element) {
+    return false;
+  }
+
+  return isEditableShortcutTarget(element, config) || Boolean(element.closest(config.blockedShortcutSelector));
+}
+
+/**
+ * Checks whether an event is a configured spin shortcut key.
+ * @param {{key: string}} event
+ * @param {KeyboardShortcutConfig} config
+ * @returns {boolean}
+ */
+function isSpinShortcutEvent(event, config = KEYBOARD_CONFIG) {
+  return config.spinKeys.includes(event.key);
+}
+
+/**
+ * Checks whether the spin shortcut can run without interfering with page input.
+ * @param {{key: string, repeat: boolean, target: EventTarget | null}} event
+ * @param {KeyboardShortcutConfig} config
+ * @returns {boolean}
+ */
+function shouldHandleSpinShortcut(event, config = KEYBOARD_CONFIG) {
+  return isSpinShortcutEvent(event, config)
+    && !event.repeat
+    && !isKeyboardShortcutBlockedTarget(event.target, config);
+}
+
+/**
+ * Uses the spin button as the single activation path for pointer and keyboard spins.
+ * @param {KeyboardShortcutConfig} config
+ * @returns {boolean}
+ */
+function triggerSpinButtonClick(config = KEYBOARD_CONFIG) {
+  try {
+    const spinButton = document.getElementById(config.spinButtonId);
+
+    if (!spinButton || spinButton.disabled || typeof spinButton.click !== "function") {
+      return false;
+    }
+
+    spinButton.click();
+    return true;
+  } catch (error) {
+    console.warn("Keyboard spin activation failed.", error);
+    return false;
+  }
+}
+
+/**
+ * Handles global keyboard shortcuts without replacing native control behavior.
+ * @param {KeyboardEvent} event
+ */
+function handleDocumentKeydown(event) {
+  if (event.key === KEYBOARD_CONFIG.closeSettingsKey) {
+    setSettingsOpen(false);
+    return;
+  }
+
+  if (isSpinShortcutEvent(event)) {
+    if (shouldHandleSpinShortcut(event) && triggerSpinButtonClick() && typeof event.preventDefault === "function") {
+      event.preventDefault();
+    }
+    return;
+  }
+
+  if (event.repeat || event.key.toLowerCase() !== KEYBOARD_CONFIG.bigWinKey) {
+    return;
+  }
+
+  triggerBigWinFeedback(state.bet * 20);
+}
+
+/**
+ * Adds keyboard shortcuts and returns the matching cleanup function.
+ * @param {Document} eventTarget
+ * @returns {() => void}
+ */
+function wireKeyboardShortcuts(eventTarget = document) {
+  eventTarget.addEventListener("keydown", handleDocumentKeydown);
+
+  return () => {
+    eventTarget.removeEventListener("keydown", handleDocumentKeydown);
+  };
+}
+
+/**
+ * Removes active keyboard shortcuts when the document is unloaded.
+ */
+function cleanupKeyboardShortcuts() {
+  if (!keyboardShortcutCleanup) {
+    return;
+  }
+
+  keyboardShortcutCleanup();
+  keyboardShortcutCleanup = null;
+}
+
+/**
+ * Mounts the global keyboard shortcuts once the UI is ready.
+ */
+function mountKeyboardShortcuts() {
+  cleanupKeyboardShortcuts();
+  keyboardShortcutCleanup = wireKeyboardShortcuts();
+
+  if (!pagehideCleanupRegistered) {
+    window.addEventListener("pagehide", cleanupKeyboardShortcuts);
+    pagehideCleanupRegistered = true;
+  }
+}
+
+/**
  * Changes the active bet by one step.
  * @param {number} direction
  */
@@ -1660,18 +1860,7 @@ function initializeGame() {
 
       resolveBonusPick(Number(button.dataset.crateIndex));
     });
-    document.addEventListener("keydown", (event) => {
-      if (event.key === "Escape") {
-        setSettingsOpen(false);
-        return;
-      }
-
-      if (event.repeat || event.key.toLowerCase() !== "j") {
-        return;
-      }
-
-      triggerBigWinFeedback(state.bet * 20);
-    });
+    mountKeyboardShortcuts();
 
     if (dailyReward) {
       showRewardFeedback(dailyReward);
@@ -1692,6 +1881,7 @@ if (typeof module !== "undefined") {
     FREE_SPIN_CONFIG,
     GAME_LIMITS,
     JACKPOT_CONFIG,
+    KEYBOARD_CONFIG,
     RETENTION_CONFIG,
     STORAGE_KEYS,
     MULTIPLIER_CONFIG,
@@ -1710,8 +1900,11 @@ if (typeof module !== "undefined") {
     getFreeSpinAward,
     getLeftToRightMatch,
     getLineMultiplier,
+    isKeyboardShortcutBlockedTarget,
+    isSpinShortcutEvent,
     isWildHorizontalLine,
     resolveDailyLoginReward,
+    shouldHandleSpinShortcut,
     shouldGrantDailyReward
   };
 }

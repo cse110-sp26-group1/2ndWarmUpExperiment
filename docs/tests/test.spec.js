@@ -160,6 +160,26 @@ test.describe("unit", () => {
       variant: "free-spins"
     });
   });
+
+  test("filters spin keyboard shortcuts before using the button path", async () => {
+    const inertTarget = { closest: () => null };
+    const blockedTarget = {
+      closest: (selector) => selector.includes("input") ? {} : null
+    };
+    const editableTarget = {
+      closest: (selector) => selector === game.KEYBOARD_CONFIG.editableShortcutSelector
+        ? { getAttribute: () => "true" }
+        : null
+    };
+
+    expect(game.isSpinShortcutEvent({ key: " " })).toBe(true);
+    expect(game.isSpinShortcutEvent({ key: "Spacebar" })).toBe(true);
+    expect(game.isSpinShortcutEvent({ key: "Enter" })).toBe(false);
+    expect(game.shouldHandleSpinShortcut({ key: " ", repeat: false, target: inertTarget })).toBe(true);
+    expect(game.shouldHandleSpinShortcut({ key: " ", repeat: true, target: inertTarget })).toBe(false);
+    expect(game.shouldHandleSpinShortcut({ key: " ", repeat: false, target: blockedTarget })).toBe(false);
+    expect(game.shouldHandleSpinShortcut({ key: " ", repeat: false, target: editableTarget })).toBe(false);
+  });
 });
 
 test.describe("retention", () => {
@@ -283,5 +303,83 @@ test.describe("regression", () => {
     await page.keyboard.press("j");
     await expect(page.locator("#bigWinCelebration")).toHaveClass(/show/);
     await expect(page.locator("#statusMessage")).toHaveText("Big Win");
+  });
+});
+
+test.describe("keyboard spin shortcut", () => {
+  test.beforeEach(async ({ page }) => {
+    await gotoGame(page);
+    await page.evaluate(() => {
+      state.fastPlayEnabled = false;
+      document.getElementById("fastPlayToggle").checked = false;
+      state.balance = 1000;
+      state.bet = 10;
+      state.freeSpins = 0;
+      state.isBonusActive = false;
+      state.bonusRound = null;
+      window.__spinButtonClickCount = 0;
+      document.getElementById("spinButton").addEventListener("click", () => {
+        window.__spinButtonClickCount += 1;
+      });
+      updateDisplays();
+    });
+  });
+
+  test("pressing Space on the page activates the existing spin button path", async ({ page }) => {
+    await page.keyboard.press("Space");
+
+    await expect(page.locator("#spinButton")).toHaveText("Skip");
+    await expect(page.locator("#statusMessage")).toHaveText("Reels spinning");
+    await expect.poll(() => page.evaluate(() => window.__spinButtonClickCount)).toBe(1);
+  });
+
+  test("Space does not spin when the spin button is disabled", async ({ page }) => {
+    await page.evaluate(() => {
+      state.balance = 0;
+      state.freeSpins = 0;
+      updateDisplays();
+    });
+
+    await expect(page.locator("#spinButton")).toBeDisabled();
+    await page.keyboard.press("Space");
+
+    await expect.poll(() => page.evaluate(() => window.__spinButtonClickCount)).toBe(0);
+    await expect.poll(() => page.evaluate(() => state.isSpinning)).toBe(false);
+  });
+
+  test("Space is not hijacked while typing in editable fields", async ({ page }) => {
+    await page.evaluate(() => {
+      const textarea = document.createElement("textarea");
+      textarea.id = "shortcutTextarea";
+      textarea.value = "bet";
+      document.body.appendChild(textarea);
+      textarea.focus();
+    });
+
+    await page.keyboard.press("Space");
+
+    await expect(page.locator("#shortcutTextarea")).toHaveValue("bet ");
+    await expect.poll(() => page.evaluate(() => window.__spinButtonClickCount)).toBe(0);
+  });
+
+  test("holding Space does not trigger repeated spin button clicks", async ({ page }) => {
+    await page.evaluate(() => {
+      state.fastPlayEnabled = true;
+      document.getElementById("fastPlayToggle").checked = true;
+      updateDisplays();
+    });
+
+    await page.keyboard.down("Space");
+    await page.keyboard.down("Space");
+    await page.keyboard.up("Space");
+
+    await expect.poll(() => page.evaluate(() => window.__spinButtonClickCount)).toBe(1);
+  });
+
+  test("focused spin button keeps its native Space keyboard behavior", async ({ page }) => {
+    await page.locator("#spinButton").focus();
+    await page.keyboard.press("Space");
+
+    await expect.poll(() => page.evaluate(() => window.__spinButtonClickCount)).toBe(1);
   });
 });
