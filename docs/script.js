@@ -18,6 +18,7 @@ const REEL_COUNT = 5;
 const ROW_COUNT = 3;
 const WILD_ID = "wild";
 const SCATTER_ID = "scatter";
+const FAST_PLAY_STORAGE_KEY = "gunslinger-gold-fast-play";
 
 /** @type {SymbolDefinition[]} */
 const SYMBOLS = [
@@ -77,12 +78,38 @@ const state = {
   bet: MIN_BET,
   isSpinning: false,
   freeSpins: 0,
-  board: createBoard()
+  board: createBoard(),
+  fastPlayEnabled: false
 };
 
 let audioContext = null;
 let popupTimeout = 0;
 let bigWinTimeout = 0;
+let activeSpin = null;
+
+/**
+ * Reads the saved fast play preference.
+ * @returns {boolean}
+ */
+function loadFastPlayPreference() {
+  try {
+    return window.localStorage.getItem(FAST_PLAY_STORAGE_KEY) === "true";
+  } catch (error) {
+    return false;
+  }
+}
+
+/**
+ * Saves the fast play preference.
+ * @param {boolean} value
+ */
+function saveFastPlayPreference(value) {
+  try {
+    window.localStorage.setItem(FAST_PLAY_STORAGE_KEY, String(value));
+  } catch (error) {
+    // Ignore storage failures so gameplay continues normally.
+  }
+}
 
 /**
  * Returns a random integer between zero and maxExclusive minus one.
@@ -259,11 +286,14 @@ function renderBoard(board) {
  * Updates text displays and disabled states.
  */
 function updateDisplays() {
+  const spinButton = document.getElementById("spinButton");
+
   document.getElementById("balanceDisplay").textContent = String(state.balance);
   document.getElementById("betDisplay").textContent = String(state.bet);
   document.getElementById("decreaseBetButton").disabled = state.isSpinning || state.bet <= MIN_BET;
   document.getElementById("increaseBetButton").disabled = state.isSpinning || state.bet >= MAX_BET;
-  document.getElementById("spinButton").disabled = state.isSpinning || (state.balance < state.bet && state.freeSpins === 0);
+  spinButton.disabled = !state.isSpinning && state.balance < state.bet && state.freeSpins === 0;
+  spinButton.textContent = state.isSpinning ? "Skip" : "Spin";
 }
 
 /**
@@ -514,6 +544,7 @@ function settleSpin(board, usedFreeSpin) {
   state.balance += result.totalWin;
   state.freeSpins += result.freeSpinsAwarded;
   state.isSpinning = false;
+  activeSpin = null;
 
   if (usedFreeSpin) {
     state.freeSpins = Math.max(0, state.freeSpins);
@@ -533,6 +564,40 @@ function settleSpin(board, usedFreeSpin) {
   }
 
   updateDisplays();
+}
+
+/**
+ * Finalizes an active spin immediately.
+ */
+function finishActiveSpin() {
+  if (!activeSpin) {
+    return;
+  }
+
+  activeSpin.intervals.forEach((intervalId) => window.clearInterval(intervalId));
+  activeSpin.timeouts.forEach((timeoutId) => window.clearTimeout(timeoutId));
+
+  activeSpin.reels.forEach((reelElement, reelIndex) => {
+    reelElement.classList.remove("spinning");
+    reelElement.innerHTML = "";
+
+    for (let row = 0; row < ROW_COUNT; row += 1) {
+      reelElement.appendChild(createSymbolCell(activeSpin.nextBoard[row][reelIndex], reelIndex, row));
+    }
+  });
+
+  state.board = activeSpin.nextBoard;
+  settleSpin(activeSpin.nextBoard, activeSpin.usedFreeSpin);
+}
+
+/**
+ * Opens or closes the settings overlay.
+ * @param {boolean} isOpen
+ */
+function setSettingsOpen(isOpen) {
+  const overlay = document.getElementById("settingsOverlay");
+  overlay.classList.toggle("show", isOpen);
+  overlay.setAttribute("aria-hidden", String(!isOpen));
 }
 
 /**
@@ -562,12 +627,30 @@ function spin() {
 
   const nextBoard = createBoard();
   const reels = Array.from(document.querySelectorAll(".reel"));
+  const intervals = [];
+  const timeouts = [];
+
+  activeSpin = {
+    usedFreeSpin,
+    nextBoard,
+    reels,
+    intervals,
+    timeouts
+  };
+
+  if (state.fastPlayEnabled) {
+    finishActiveSpin();
+    return;
+  }
 
   reels.forEach((reelElement, reelIndex) => {
     const interval = window.setInterval(() => renderSpinStrip(reelElement, reelIndex), 86);
     const stopDelay = 650 + reelIndex * 260;
+    const timeoutId = window.setTimeout(() => {
+      if (!activeSpin || activeSpin.nextBoard !== nextBoard) {
+        return;
+      }
 
-    window.setTimeout(() => {
       window.clearInterval(interval);
       reelElement.classList.remove("spinning");
       reelElement.innerHTML = "";
@@ -583,7 +666,22 @@ function spin() {
         settleSpin(nextBoard, usedFreeSpin);
       }
     }, stopDelay);
+
+    intervals.push(interval);
+    timeouts.push(timeoutId);
   });
+}
+
+/**
+ * Starts a spin or skips the current one depending on game state.
+ */
+function handleSpinButtonClick() {
+  if (state.isSpinning) {
+    finishActiveSpin();
+    return;
+  }
+
+  spin();
 }
 
 /**
@@ -603,12 +701,32 @@ function changeBet(direction) {
  * Wires UI events once the document is ready.
  */
 function initializeGame() {
+  state.fastPlayEnabled = loadFastPlayPreference();
   renderBoard(state.board);
   updateDisplays();
-  document.getElementById("spinButton").addEventListener("click", spin);
+  document.getElementById("fastPlayToggle").checked = state.fastPlayEnabled;
+  document.getElementById("spinButton").addEventListener("click", handleSpinButtonClick);
   document.getElementById("decreaseBetButton").addEventListener("click", () => changeBet(-1));
   document.getElementById("increaseBetButton").addEventListener("click", () => changeBet(1));
+  document.getElementById("settingsButton").addEventListener("click", () => {
+    const overlay = document.getElementById("settingsOverlay");
+    setSettingsOpen(overlay.getAttribute("aria-hidden") === "true");
+  });
+  document.getElementById("settingsOverlay").addEventListener("click", (event) => {
+    if (event.target.id === "settingsOverlay") {
+      setSettingsOpen(false);
+    }
+  });
+  document.getElementById("fastPlayToggle").addEventListener("change", (event) => {
+    state.fastPlayEnabled = event.target.checked;
+    saveFastPlayPreference(state.fastPlayEnabled);
+  });
   document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+      setSettingsOpen(false);
+      return;
+    }
+
     if (event.repeat || event.key.toLowerCase() !== "j") {
       return;
     }
