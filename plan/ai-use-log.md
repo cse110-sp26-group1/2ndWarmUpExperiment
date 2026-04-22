@@ -37,10 +37,10 @@
 
 ### Advanced Gameplay Mechanics
 
-- [ ] Multipliers
-- [ ] Free spins (triggered by scatter)
-- [ ] Bonus round (choice-based mechanic)
-- [ ] Jackpot system (large win condition)
+- [x] Multipliers
+- [x] Free spins (triggered by scatter)
+- [x] Bonus round (choice-based mechanic)
+- [x] Jackpot system (large win condition)
 
 ---
 
@@ -49,7 +49,7 @@
 - [ ] Cascading reels (winning symbols disappear and refill)
 - [ ] Cluster pay system (if implemented)
 - [ ] Near-miss outcomes
-- [ ] Progressive rewards / scaling bonuses
+- [x] Progressive rewards / scaling bonuses
 
 ---
 
