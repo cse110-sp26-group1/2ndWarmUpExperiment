@@ -15,6 +15,10 @@ function createRelativeDateKey(dayOffset) {
 
 const TEST_CONFIG = {
   bet: 10,
+  desktopViewport: {
+    width: 1280,
+    height: 800
+  },
   startingBalance: game.GAME_LIMITS.defaultBalance,
   losingPaidSpinBalance: game.GAME_LIMITS.defaultBalance - game.GAME_LIMITS.minBet,
   standardWinPaidSpinBalance: game.GAME_LIMITS.defaultBalance - game.GAME_LIMITS.minBet + 60,
@@ -162,6 +166,56 @@ async function gotoGame(page, lastLoginDateKey = TEST_CONFIG.todayDateKey) {
   });
 
   await page.goto(TEST_CONFIG.fileUrl);
+}
+
+/**
+ * Reads the key viewport-fit measurements for the desktop layout.
+ * @param {import("@playwright/test").Page} page
+ * @returns {Promise<{
+ *   viewportWidth: number,
+ *   viewportHeight: number,
+ *   scrollWidth: number,
+ *   scrollHeight: number,
+ *   machineRect: {top: number, right: number, bottom: number, left: number, width: number, height: number},
+ *   spinRect: {top: number, right: number, bottom: number, left: number, width: number, height: number}
+ * }>}
+ */
+async function getDesktopLayoutMetrics(page) {
+  return page.evaluate(() => {
+    const slotMachine = document.querySelector(".slot-machine");
+    const spinButton = document.getElementById("spinButton");
+    const root = document.documentElement;
+
+    if (!(slotMachine instanceof HTMLElement) || !(spinButton instanceof HTMLElement)) {
+      throw new Error("Expected slot machine and spin button to exist for viewport layout checks.");
+    }
+
+    const machineRect = slotMachine.getBoundingClientRect();
+    const spinRect = spinButton.getBoundingClientRect();
+
+    return {
+      viewportWidth: window.innerWidth,
+      viewportHeight: window.innerHeight,
+      scrollWidth: root.scrollWidth,
+      scrollHeight: root.scrollHeight,
+      machineRect: {
+        top: machineRect.top,
+        right: machineRect.right,
+        bottom: machineRect.bottom,
+        left: machineRect.left,
+        width: machineRect.width,
+        height: machineRect.height
+      },
+      spinRect: {
+        top: spinRect.top,
+        right: spinRect.right,
+        bottom: spinRect.bottom,
+        left: spinRect.left,
+        width: spinRect.width,
+        height: spinRect.height
+      }
+    };
+  });
 }
 
 /**
@@ -999,6 +1053,49 @@ test.describe("smoke", () => {
     await page.click("#spinButton");
     await expect(page.locator("#spinButton")).toHaveText("Spin");
     expect(consoleErrors).toEqual([]);
+  });
+
+  test("desktop viewport keeps the full machine visible and the spin button clickable at 1280x800", async ({ page }) => {
+    const consoleErrors = [];
+    page.on("console", (message) => {
+      if (message.type() === "error") {
+        consoleErrors.push(message.text());
+      }
+    });
+
+    await page.setViewportSize(TEST_CONFIG.desktopViewport);
+    await gotoGame(page);
+
+    await expect(page.locator("#game-title")).toHaveText("Gunslinger Gold");
+    await expect(page.locator("#spinButton")).toBeVisible();
+    await expect(page.locator("#spinButton")).toBeEnabled();
+
+    const metrics = await getDesktopLayoutMetrics(page);
+
+    expect(metrics.machineRect.top).toBeGreaterThanOrEqual(0);
+    expect(metrics.machineRect.left).toBeGreaterThanOrEqual(0);
+    expect(metrics.machineRect.right).toBeLessThanOrEqual(metrics.viewportWidth);
+    expect(metrics.machineRect.bottom).toBeLessThanOrEqual(metrics.viewportHeight);
+    expect(metrics.spinRect.top).toBeGreaterThanOrEqual(0);
+    expect(metrics.spinRect.bottom).toBeLessThanOrEqual(metrics.viewportHeight);
+    expect(consoleErrors).toEqual([]);
+
+    await page.click("#spinButton");
+    await expect(page.locator("#spinButton")).toHaveText("Skip");
+    await page.click("#spinButton");
+    await expect(page.locator("#spinButton")).toHaveText("Spin");
+  });
+
+  test("desktop viewport does not overflow the page bounds at 1280x800", async ({ page }) => {
+    await page.setViewportSize(TEST_CONFIG.desktopViewport);
+    await gotoGame(page);
+
+    const metrics = await getDesktopLayoutMetrics(page);
+
+    expect(metrics.scrollWidth).toBeLessThanOrEqual(metrics.viewportWidth);
+    expect(metrics.scrollHeight).toBeLessThanOrEqual(metrics.viewportHeight);
+    expect(metrics.machineRect.width).toBeLessThanOrEqual(metrics.viewportWidth);
+    expect(metrics.machineRect.height).toBeLessThanOrEqual(metrics.viewportHeight);
   });
 
   test("pick-a-crate smoke flow opens, reveals, completes, and leaves the game usable", async ({ page }) => {

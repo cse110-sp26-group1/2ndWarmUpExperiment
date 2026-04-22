@@ -2210,3 +2210,90 @@ Test EVERYTHING.
 - [x] None
 - [ ] Yes
 ---
+
+# Prompt 22
+## Role
+
+You are a careful senior engineer working in my existing vanilla JS slot machine project, Gunslinger Gold. The project lives in `docs/` (`index.html`, `script.js`, `styles.css`) with tests in `docs/tests/test.spec.js`.
+
+## Problem
+
+The game UI does not fit within the browser viewport at default zoom (100%). Users must zoom out to see the full slot machine frame. The game should fit comfortably within a standard desktop browser window at 100% zoom without scrolling or clipping.
+
+## Goal
+
+Fix the layout so the entire slot machine UI — including the title, jackpot displays, reel grid, and control panel — fits within the visible browser viewport at 100% zoom on a standard desktop screen (minimum target: 1280×800 viewport).
+
+## What to Change
+
+- Audit and reduce fixed pixel dimensions (width, height, font sizes, padding, margins) on the main game container, reel grid, symbol cells, jackpot bar, and control panel that cause overflow.
+- Use viewport-relative units (`vh`, `vw`, `min()`, `clamp()`) or `max-height`/`overflow` strategies where appropriate to constrain the layout to the viewport.
+- Scale down font sizes, symbol cell sizes, and spacing proportionally so the visual hierarchy and theme are preserved.
+- The slot machine frame, reels, and control panel must all remain fully visible and usable at 100% zoom.
+- Do not add a scrollbar to the page as the primary fix — the layout itself should shrink to fit.
+- Preserve the existing responsive skeleton for tablet/mobile; do not regress smaller breakpoints.
+
+## Non-Negotiable Constraints
+
+- Preserve all existing functionality.
+- Do not change any existing behavior, game logic, RNG, payout math, or animations.
+- Do not refactor unrelated architecture.
+- Do not introduce anything additional beyond this layout fix.
+- No new dependencies.
+
+## Engineering Requirements
+
+- Add JSDoc comments to any new or modified JavaScript functions.
+- Do not use hard-coded magic values; use constants or config objects where appropriate.
+- Keep linting clean.
+- Add error handling for any dynamic sizing logic (e.g., missing DOM nodes).
+
+## Testing Requirements
+
+All tests go in `docs/tests/test.spec.js`. Do not delete any existing tests.
+
+### Unit Tests
+- Any JS helper added for dynamic sizing returns correct values given valid and invalid inputs.
+
+### Playwright End-to-End Tests
+- Smoke: page loads at a 1280×800 viewport with no console errors and the spin button is visible and clickable without scrolling.
+- Verify the main game container does not overflow the viewport at 1280×800.
+- Verify a basic spin still completes correctly after the layout change.
+- Regression: existing spin, free-spin, bonus, and jackpot flows are unaffected.
+
+## Deliverables
+
+- Diffs for each changed file.
+- A short explanation of what was causing the overflow and how the fix constrains it.
+- A quick manual test checklist:
+  - Game fits at 100% zoom on a 1280×800 window
+  - No content clipped or cut off
+  - Spin button visible without scrolling
+  - All existing features still work
+
+## Ambiguity Handling
+
+If a single breakpoint value is ambiguous, target 1280×800 as the minimum desktop viewport and scale conservatively — it is better to leave slight padding than to make the UI feel cramped.
+
+
+---
+
+## Results
+
+### List what it got correct:
+- Game fits in screen now.
+
+
+### List what it didn't get correct:
+- Reel size is smaller and has wasted space in the top of the layout.
+
+
+### List any unexpected behavior or errors it introduced:
+
+- None
+
+### Manual Edits (Only if LLM failed after attempts)
+
+- [x] None
+- [ ] Yes
+---
