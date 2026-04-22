@@ -13,10 +13,44 @@
     <div id="settingsOverlay" class="settings-overlay" aria-hidden="true">
       <div class="settings-panel" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
         <h2 id="settingsTitle">Settings</h2>
-        <label class="settings-toggle" for="fastPlayToggle">
-          <span>Fast Play / Skip Animation</span>
-          <input id="fastPlayToggle" type="checkbox">
-        </label>
+        <div class="settings-control settings-volume">
+          <span id="volumeLabel">Volume</span>
+          <div class="settings-volume-control">
+            <input
+              id="volumeSlider"
+              type="range"
+              min="0"
+              max="100"
+              step="5"
+              value="60"
+              aria-labelledby="volumeLabel"
+            >
+            <button
+              id="volumeMuteButton"
+              class="settings-icon-button"
+              type="button"
+              aria-label="Mute volume"
+              aria-pressed="false"
+              data-volume-state="high"
+            >
+              <svg class="volume-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                <path class="volume-speaker" d="M4 9h4l5-4v14l-5-4H4z"></path>
+                <path class="volume-wave volume-wave-inner" d="M16 9.5a4 4 0 0 1 0 5"></path>
+                <path class="volume-wave volume-wave-outer" d="M18.5 7a7.5 7.5 0 0 1 0 10"></path>
+                <path class="volume-slash" d="M6 6l12 12"></path>
+              </svg>
+            </button>
+          </div>
+        </div>
+        <div class="settings-control settings-speed">
+          <span id="spinSpeedLabel">Spin Speed</span>
+          <div class="settings-speed-options" role="group" aria-labelledby="spinSpeedLabel">
+            <button id="spinSpeedSlow" class="settings-speed-button" type="button" data-spin-speed="slow" aria-pressed="false">Slow</button>
+            <button id="spinSpeedNormal" class="settings-speed-button" type="button" data-spin-speed="normal" aria-pressed="true">Normal</button>
+            <button id="spinSpeedFast" class="settings-speed-button" type="button" data-spin-speed="fast" aria-pressed="false">Fast</button>
+            <button id="spinSpeedSkip" class="settings-speed-button" type="button" data-spin-speed="skip" aria-pressed="false">Skip</button>
+          </div>
+        </div>
       </div>
     </div>
     <div id="bonusOverlay" class="settings-overlay bonus-overlay" aria-hidden="true">

@@ -103,6 +103,17 @@
  */
 
 /**
+ * @typedef {Object} AudioSettings
+ * @property {number} volume
+ * @property {boolean} isMuted
+ * @property {number} previousVolume
+ */
+
+/**
+ * @typedef {"slow" | "normal" | "fast" | "skip"} SpinSpeedMode
+ */
+
+/**
  * @typedef {Object} KeyboardShortcutConfig
  * @property {string} spinButtonId
  * @property {string[]} spinKeys
@@ -120,7 +131,8 @@
  * @property {number} freeSpins
  * @property {string[][]} board
  * @property {(BoardCellFeature | null)[][]} boardFeatures
- * @property {boolean} fastPlayEnabled
+ * @property {SpinSpeedMode} spinSpeed
+ * @property {AudioSettings} audioSettings
  * @property {boolean} isBonusActive
  * @property {BonusRoundState | null} bonusRound
  * @property {{mini: number, major: number, grand: number}} jackpots
@@ -142,10 +154,56 @@ const SYMBOL_IDS = {
 };
 
 const STORAGE_KEYS = {
-  fastPlay: "gunslinger-gold-fast-play",
+  spinSpeed: "gunslinger-gold-spin-speed",
+  audioSettings: "gunslinger-gold-audio-settings",
   jackpots: "gunslinger-gold-jackpots",
   lastLoginDate: "gunslinger-gold-last-login-date"
 };
+
+const AUDIO_SETTINGS_CONFIG = Object.freeze({
+  defaultVolume: 0.6,
+  minVolume: 0,
+  maxVolume: 1,
+  step: 0.05,
+  sliderScale: 100,
+  lowVolumeThreshold: 0.5,
+  sliderId: "volumeSlider",
+  muteButtonId: "volumeMuteButton",
+  muteLabel: "Mute volume",
+  unmuteLabel: "Restore volume"
+});
+
+const SPIN_SPEED_CONFIG = Object.freeze({
+  defaultMode: "normal",
+  modes: {
+    slow: {
+      spinStripIntervalMs: 118,
+      reelStopBaseMs: 910,
+      reelStopStepMs: 360
+    },
+    normal: {
+      spinStripIntervalMs: 86,
+      reelStopBaseMs: 650,
+      reelStopStepMs: 260
+    },
+    fast: {
+      spinStripIntervalMs: 54,
+      reelStopBaseMs: 390,
+      reelStopStepMs: 160
+    },
+    skip: {
+      spinStripIntervalMs: 0,
+      reelStopBaseMs: 0,
+      reelStopStepMs: 0
+    }
+  },
+  buttonIds: {
+    slow: "spinSpeedSlow",
+    normal: "spinSpeedNormal",
+    fast: "spinSpeedFast",
+    skip: "spinSpeedSkip"
+  }
+});
 
 const MULTIPLIER_CONFIG = {
   values: [2, 3, 5],
@@ -441,7 +499,8 @@ const state = {
   freeSpins: 0,
   board: [],
   boardFeatures: [],
-  fastPlayEnabled: false,
+  spinSpeed: SPIN_SPEED_CONFIG.defaultMode,
+  audioSettings: createDefaultAudioSettings(),
   isBonusActive: false,
   bonusRound: null,
   jackpots: { ...JACKPOT_CONFIG.startingValues }
@@ -715,27 +774,336 @@ function serializeHtmlAttributes(attributes) {
 }
 
 /**
- * Reads the saved fast play preference.
- * @returns {boolean}
+ * Clamps an audio volume value into the supported range.
+ * @param {number | string} value
+ * @param {typeof AUDIO_SETTINGS_CONFIG} [config]
+ * @returns {number}
  */
-function loadFastPlayPreference() {
+function clampVolume(value, config = AUDIO_SETTINGS_CONFIG) {
+  const numericValue = Number(value);
+
+  if (!Number.isFinite(numericValue)) {
+    return config.defaultVolume;
+  }
+
+  return Math.min(config.maxVolume, Math.max(config.minVolume, Number(numericValue.toFixed(2))));
+}
+
+/**
+ * Creates the default persisted audio settings shape.
+ * @param {typeof AUDIO_SETTINGS_CONFIG} [config]
+ * @returns {AudioSettings}
+ */
+function createDefaultAudioSettings(config = AUDIO_SETTINGS_CONFIG) {
+  const defaultVolume = clampVolume(config.defaultVolume, config);
+
+  return {
+    volume: defaultVolume,
+    isMuted: false,
+    previousVolume: defaultVolume
+  };
+}
+
+/**
+ * Normalizes stored or external audio settings into a safe shape.
+ * @param {Partial<AudioSettings> | null | undefined} value
+ * @param {typeof AUDIO_SETTINGS_CONFIG} [config]
+ * @returns {AudioSettings}
+ */
+function sanitizeAudioSettings(value, config = AUDIO_SETTINGS_CONFIG) {
+  const defaults = createDefaultAudioSettings(config);
+
+  if (!value || typeof value !== "object") {
+    return defaults;
+  }
+
+  const volume = clampVolume(value.volume, config);
+  const previousVolumeCandidate = clampVolume(value.previousVolume, config);
+  const isMuted = Boolean(value.isMuted);
+  const previousVolume = previousVolumeCandidate > config.minVolume
+    ? previousVolumeCandidate
+    : (volume > config.minVolume ? volume : defaults.previousVolume);
+
+  return {
+    volume: isMuted ? config.minVolume : volume,
+    isMuted,
+    previousVolume
+  };
+}
+
+/**
+ * Loads the saved audio settings preference.
+ * @param {typeof AUDIO_SETTINGS_CONFIG} [config]
+ * @returns {AudioSettings}
+ */
+function loadAudioSettings(config = AUDIO_SETTINGS_CONFIG) {
   try {
-    return window.localStorage.getItem(STORAGE_KEYS.fastPlay) === "true";
+    const rawValue = window.localStorage.getItem(STORAGE_KEYS.audioSettings);
+
+    if (!rawValue) {
+      return createDefaultAudioSettings(config);
+    }
+
+    return sanitizeAudioSettings(JSON.parse(rawValue), config);
   } catch (_error) {
-    return false;
+    return createDefaultAudioSettings(config);
   }
 }
 
 /**
- * Saves the fast play preference.
- * @param {boolean} value
+ * Saves the current audio settings preference.
+ * @param {AudioSettings} audioSettings
+ * @param {typeof AUDIO_SETTINGS_CONFIG} [config]
  */
-function saveFastPlayPreference(value) {
+function saveAudioSettings(audioSettings, config = AUDIO_SETTINGS_CONFIG) {
   try {
-    window.localStorage.setItem(STORAGE_KEYS.fastPlay, String(value));
+    window.localStorage.setItem(
+      STORAGE_KEYS.audioSettings,
+      JSON.stringify(sanitizeAudioSettings(audioSettings, config))
+    );
   } catch (_error) {
     // Ignore storage failures so gameplay continues normally.
   }
+}
+
+/**
+ * Checks whether a spin speed mode is supported.
+ * @param {string} value
+ * @returns {value is SpinSpeedMode}
+ */
+function isValidSpinSpeedMode(value) {
+  return Object.prototype.hasOwnProperty.call(SPIN_SPEED_CONFIG.modes, value);
+}
+
+/**
+ * Reads the saved spin speed preference.
+ * @returns {SpinSpeedMode}
+ */
+function loadSpinSpeedPreference() {
+  try {
+    const value = window.localStorage.getItem(STORAGE_KEYS.spinSpeed);
+    return isValidSpinSpeedMode(value) ? value : SPIN_SPEED_CONFIG.defaultMode;
+  } catch (_error) {
+    return SPIN_SPEED_CONFIG.defaultMode;
+  }
+}
+
+/**
+ * Saves the spin speed preference.
+ * @param {SpinSpeedMode} value
+ */
+function saveSpinSpeedPreference(value) {
+  try {
+    window.localStorage.setItem(
+      STORAGE_KEYS.spinSpeed,
+      isValidSpinSpeedMode(value) ? value : SPIN_SPEED_CONFIG.defaultMode
+    );
+  } catch (_error) {
+    // Ignore storage failures so gameplay continues normally.
+  }
+}
+
+/**
+ * Returns the active timing config for the selected spin speed.
+ * @param {SpinSpeedMode} spinSpeed
+ * @returns {{spinStripIntervalMs: number, reelStopBaseMs: number, reelStopStepMs: number}}
+ */
+function getSpinTiming(spinSpeed) {
+  return SPIN_SPEED_CONFIG.modes[isValidSpinSpeedMode(spinSpeed) ? spinSpeed : SPIN_SPEED_CONFIG.defaultMode];
+}
+
+/**
+ * Returns the currently effective output volume.
+ * @param {AudioSettings} audioSettings
+ * @param {typeof AUDIO_SETTINGS_CONFIG} [config]
+ * @returns {number}
+ */
+function getEffectiveVolume(audioSettings, config = AUDIO_SETTINGS_CONFIG) {
+  const safeSettings = sanitizeAudioSettings(audioSettings, config);
+  return safeSettings.isMuted ? config.minVolume : safeSettings.volume;
+}
+
+/**
+ * Creates the next audio settings after a direct volume change.
+ * @param {AudioSettings} audioSettings
+ * @param {number | string} nextVolume
+ * @param {typeof AUDIO_SETTINGS_CONFIG} [config]
+ * @returns {AudioSettings}
+ */
+function setAudioVolumeState(audioSettings, nextVolume, config = AUDIO_SETTINGS_CONFIG) {
+  const currentSettings = sanitizeAudioSettings(audioSettings, config);
+  const volume = clampVolume(nextVolume, config);
+
+  if (volume <= config.minVolume) {
+    return {
+      volume: config.minVolume,
+      isMuted: true,
+      previousVolume: currentSettings.volume > config.minVolume
+        ? currentSettings.volume
+        : currentSettings.previousVolume
+    };
+  }
+
+  return {
+    volume,
+    isMuted: false,
+    previousVolume: volume
+  };
+}
+
+/**
+ * Creates the next audio settings after toggling mute.
+ * @param {AudioSettings} audioSettings
+ * @param {typeof AUDIO_SETTINGS_CONFIG} [config]
+ * @returns {AudioSettings}
+ */
+function toggleAudioMuteState(audioSettings, config = AUDIO_SETTINGS_CONFIG) {
+  const currentSettings = sanitizeAudioSettings(audioSettings, config);
+
+  if (currentSettings.isMuted || currentSettings.volume <= config.minVolume) {
+    const restoredVolume = currentSettings.previousVolume > config.minVolume
+      ? currentSettings.previousVolume
+      : createDefaultAudioSettings(config).volume;
+
+    return {
+      volume: restoredVolume,
+      isMuted: false,
+      previousVolume: restoredVolume
+    };
+  }
+
+  return {
+    volume: config.minVolume,
+    isMuted: true,
+    previousVolume: currentSettings.volume
+  };
+}
+
+/**
+ * Converts a normalized volume value to the slider's integer scale.
+ * @param {number} volume
+ * @param {typeof AUDIO_SETTINGS_CONFIG} [config]
+ * @returns {string}
+ */
+function volumeToSliderValue(volume, config = AUDIO_SETTINGS_CONFIG) {
+  return String(Math.round(clampVolume(volume, config) * config.sliderScale));
+}
+
+/**
+ * Converts a slider value back to the normalized volume range.
+ * @param {number | string} sliderValue
+ * @param {typeof AUDIO_SETTINGS_CONFIG} [config]
+ * @returns {number}
+ */
+function sliderValueToVolume(sliderValue, config = AUDIO_SETTINGS_CONFIG) {
+  return clampVolume(Number(sliderValue) / config.sliderScale, config);
+}
+
+/**
+ * Resolves the visual mute button state for the current volume level.
+ * @param {AudioSettings} audioSettings
+ * @param {typeof AUDIO_SETTINGS_CONFIG} [config]
+ * @returns {"muted" | "low" | "high"}
+ */
+function getVolumeButtonState(audioSettings, config = AUDIO_SETTINGS_CONFIG) {
+  const effectiveVolume = getEffectiveVolume(audioSettings, config);
+
+  if (effectiveVolume <= config.minVolume) {
+    return "muted";
+  }
+
+  return effectiveVolume < config.lowVolumeThreshold ? "low" : "high";
+}
+
+/**
+ * Synchronizes settings controls with the current in-memory state.
+ * @param {Document} [root]
+ * @returns {boolean}
+ */
+function renderSettingsControls(root = document) {
+  if (!root || typeof root.getElementById !== "function") {
+    return false;
+  }
+
+  Object.entries(SPIN_SPEED_CONFIG.buttonIds).forEach(([mode, buttonId]) => {
+    const button = root.getElementById(buttonId);
+
+    if (button) {
+      button.setAttribute("aria-pressed", String(state.spinSpeed === mode));
+    }
+  });
+
+  const volumeSlider = root.getElementById(AUDIO_SETTINGS_CONFIG.sliderId);
+  const volumeMuteButton = root.getElementById(AUDIO_SETTINGS_CONFIG.muteButtonId);
+
+  if (!volumeSlider || !volumeMuteButton) {
+    return false;
+  }
+
+  volumeSlider.value = volumeToSliderValue(getEffectiveVolume(state.audioSettings));
+  volumeMuteButton.dataset.volumeState = getVolumeButtonState(state.audioSettings);
+  volumeMuteButton.setAttribute("aria-pressed", String(state.audioSettings.isMuted));
+  volumeMuteButton.setAttribute(
+    "aria-label",
+    state.audioSettings.isMuted ? AUDIO_SETTINGS_CONFIG.unmuteLabel : AUDIO_SETTINGS_CONFIG.muteLabel
+  );
+
+  return true;
+}
+
+/**
+ * Applies audio settings to state, persistence, and the settings UI.
+ * @param {AudioSettings} nextAudioSettings
+ */
+function applyAudioSettings(nextAudioSettings) {
+  state.audioSettings = sanitizeAudioSettings(nextAudioSettings);
+  saveAudioSettings(state.audioSettings);
+  renderSettingsControls();
+}
+
+/**
+ * Handles direct slider volume changes from the settings UI.
+ * @param {{target?: {value?: string}}} event
+ */
+function handleVolumeSliderInput(event) {
+  if (!event || !event.target) {
+    return;
+  }
+
+  applyAudioSettings(setAudioVolumeState(state.audioSettings, sliderValueToVolume(event.target.value)));
+}
+
+/**
+ * Handles mute/unmute clicks from the settings UI.
+ */
+function handleVolumeMuteButtonClick() {
+  applyAudioSettings(toggleAudioMuteState(state.audioSettings));
+}
+
+/**
+ * Applies the selected spin speed mode to state, persistence, and settings UI.
+ * @param {SpinSpeedMode} spinSpeed
+ */
+function applySpinSpeed(spinSpeed) {
+  state.spinSpeed = isValidSpinSpeedMode(spinSpeed) ? spinSpeed : SPIN_SPEED_CONFIG.defaultMode;
+  saveSpinSpeedPreference(state.spinSpeed);
+  renderSettingsControls();
+}
+
+/**
+ * Handles clicks on the spin speed option buttons.
+ * @param {{target?: EventTarget | null}} event
+ */
+function handleSpinSpeedButtonClick(event) {
+  const button = event && event.target && typeof event.target.closest === "function"
+    ? event.target.closest("[data-spin-speed]")
+    : null;
+
+  if (!button) {
+    return;
+  }
+
+  applySpinSpeed(button.dataset.spinSpeed);
 }
 
 /**
@@ -1775,7 +2143,7 @@ function renderNearMissFinalReel(reelElement, reelIndex, board, boardFeatures, p
 }
 
 /**
- * Updates text displays and disabled states.
+ * Updates text displays, settings controls, and disabled states.
  */
 function updateDisplays() {
   const spinButton = document.getElementById("spinButton");
@@ -1799,6 +2167,8 @@ function updateDisplays() {
     freeSpinsMeter.hidden = true;
     freeSpinsDisplay.textContent = "0";
   }
+
+  renderSettingsControls();
 }
 
 /**
@@ -2035,8 +2405,9 @@ function renderSpinStrip(reelElement, reelIndex) {
  */
 function playSound(type) {
   const context = getAudioContext();
+  const masterVolume = getEffectiveVolume(state.audioSettings);
 
-  if (!context) {
+  if (!context || masterVolume <= AUDIO_SETTINGS_CONFIG.minVolume) {
     return;
   }
 
@@ -2045,35 +2416,35 @@ function playSound(type) {
 
     if (type === "spin") {
       for (let step = 0; step < 8; step += 1) {
-        playTone(context, now + step * 0.055, 0.075, 210 + step * 18, 120 + step * 10, "sawtooth", 0.028);
+        playTone(context, now + step * 0.055, 0.075, 210 + step * 18, 120 + step * 10, "sawtooth", 0.028 * masterVolume);
       }
       return;
     }
 
     if (type === "reelStop") {
-      playTone(context, now, 0.07, 330, 180, "square", 0.035);
+      playTone(context, now, 0.07, 330, 180, "square", 0.035 * masterVolume);
       return;
     }
 
     if (type === "bigWin") {
       [392, 523, 659, 784, 988, 1319].forEach((frequency, index) => {
-        playTone(context, now + index * 0.08, 0.2, frequency, frequency * 1.28, "sawtooth", 0.065);
+        playTone(context, now + index * 0.08, 0.2, frequency, frequency * 1.28, "sawtooth", 0.065 * masterVolume);
       });
-      playTone(context, now, 0.62, 164, 392, "triangle", 0.045);
-      playTone(context, now + 0.16, 0.54, 246, 523, "square", 0.03);
+      playTone(context, now, 0.62, 164, 392, "triangle", 0.045 * masterVolume);
+      playTone(context, now + 0.16, 0.54, 246, 523, "square", 0.03 * masterVolume);
       return;
     }
 
     if (type === "jackpot") {
       [523, 659, 784, 1047, 1319].forEach((frequency, index) => {
-        playTone(context, now + index * 0.095, 0.18, frequency, frequency * 1.18, "triangle", 0.07);
+        playTone(context, now + index * 0.095, 0.18, frequency, frequency * 1.18, "triangle", 0.07 * masterVolume);
       });
-      playTone(context, now + 0.08, 0.5, 196, 392, "sine", 0.035);
+      playTone(context, now + 0.08, 0.5, 196, 392, "sine", 0.035 * masterVolume);
       return;
     }
 
     [523, 659, 784].forEach((frequency, index) => {
-      playTone(context, now + index * 0.09, 0.16, frequency, frequency * 1.08, "triangle", 0.06);
+      playTone(context, now + index * 0.09, 0.16, frequency, frequency * 1.08, "triangle", 0.06 * masterVolume);
     });
   } catch (error) {
     console.warn("Audio playback failed.", error);
@@ -2290,6 +2661,11 @@ function shuffleArray(values) {
  */
 function setSettingsOpen(isOpen) {
   const overlay = document.getElementById("settingsOverlay");
+
+  if (!overlay) {
+    return;
+  }
+
   overlay.classList.toggle("show", isOpen);
   overlay.setAttribute("aria-hidden", String(!isOpen));
 }
@@ -2583,6 +2959,7 @@ function stopReelWithNearMiss(reelElement, reelIndex, reels, nextBoard, nextBoar
  */
 function spin() {
   const usedFreeSpin = state.freeSpins > 0;
+  const spinTiming = getSpinTiming(state.spinSpeed);
 
   if (state.isSpinning || state.isBonusActive || (!usedFreeSpin && state.balance < state.bet)) {
     return;
@@ -2611,7 +2988,7 @@ function spin() {
   const jackpotTier = usedFreeSpin ? null : determineJackpotTier(nextBoard) || rollRandomJackpotTier();
   const nearMissPlan = selectNearMissPlan(nextBoard, nextResult, {
     usedFreeSpin,
-    fastPlayEnabled: state.fastPlayEnabled,
+    fastPlayEnabled: state.spinSpeed === "skip",
     jackpotTier
   });
   const reels = Array.from(document.querySelectorAll(".reel"));
@@ -2624,19 +3001,20 @@ function spin() {
     nextBoardFeatures,
     jackpotTier,
     nearMissPlan,
+    spinTiming,
     reels,
     intervals,
     timeouts
   };
 
-  if (state.fastPlayEnabled) {
+  if (state.spinSpeed === "skip") {
     finishActiveSpin();
     return;
   }
 
   reels.forEach((reelElement, reelIndex) => {
-    const interval = window.setInterval(() => renderSpinStrip(reelElement, reelIndex), 86);
-    let stopDelay = 650 + reelIndex * 260;
+    const interval = window.setInterval(() => renderSpinStrip(reelElement, reelIndex), spinTiming.spinStripIntervalMs);
+    let stopDelay = spinTiming.reelStopBaseMs + reelIndex * spinTiming.reelStopStepMs;
 
     if (nearMissPlan && reelIndex > nearMissPlan.reel) {
       stopDelay += nearMissPlan.timing.teaseHoldMs + nearMissPlan.timing.slideMs;
@@ -2856,12 +3234,12 @@ function changeBet(direction) {
  */
 function initializeGame() {
   try {
-    state.fastPlayEnabled = loadFastPlayPreference();
+    state.spinSpeed = loadSpinSpeedPreference();
+    state.audioSettings = loadAudioSettings();
     state.jackpots = loadJackpotPots();
     const dailyReward = grantDailyLoginReward();
     renderBoard(state.board, state.boardFeatures);
     updateDisplays();
-    document.getElementById("fastPlayToggle").checked = state.fastPlayEnabled;
     document.getElementById("spinButton").addEventListener("click", handleSpinButtonClick);
     document.getElementById("decreaseBetButton").addEventListener("click", () => changeBet(-1));
     document.getElementById("increaseBetButton").addEventListener("click", () => changeBet(1));
@@ -2874,10 +3252,23 @@ function initializeGame() {
         setSettingsOpen(false);
       }
     });
-    document.getElementById("fastPlayToggle").addEventListener("change", (event) => {
-      state.fastPlayEnabled = event.target.checked;
-      saveFastPlayPreference(state.fastPlayEnabled);
-    });
+
+    const speedOptions = document.querySelector(".settings-speed-options");
+    if (speedOptions) {
+      speedOptions.addEventListener("click", handleSpinSpeedButtonClick);
+    }
+
+    const volumeSlider = document.getElementById(AUDIO_SETTINGS_CONFIG.sliderId);
+    const volumeMuteButton = document.getElementById(AUDIO_SETTINGS_CONFIG.muteButtonId);
+
+    if (volumeSlider) {
+      volumeSlider.addEventListener("input", handleVolumeSliderInput);
+    }
+
+    if (volumeMuteButton) {
+      volumeMuteButton.addEventListener("click", handleVolumeMuteButtonClick);
+    }
+
     document.getElementById("bonusCrates").addEventListener("click", (event) => {
       const button = event.target.closest(".crate-button");
       if (!button) {
@@ -2903,6 +3294,7 @@ if (typeof document !== "undefined") {
 
 if (typeof module !== "undefined") {
   module.exports = {
+    AUDIO_SETTINGS_CONFIG,
     BONUS_CONFIG,
     FREE_SPIN_CONFIG,
     GAME_LIMITS,
@@ -2910,6 +3302,7 @@ if (typeof module !== "undefined") {
     KEYBOARD_CONFIG,
     RETENTION_CONFIG,
     STORAGE_KEYS,
+    SPIN_SPEED_CONFIG,
     MULTIPLIER_CONFIG,
     NEAR_MISS_CONFIG,
     BADGE_ART_CONFIG,
@@ -2920,7 +3313,9 @@ if (typeof module !== "undefined") {
     SYMBOL_ART_CONFIG,
     SYMBOLS,
     applyRewardToState,
+    applySpinSpeed,
     clampBet,
+    clampVolume,
     countSymbol,
     createDateKey,
     createBoardFeatureGrid,
@@ -2928,6 +3323,7 @@ if (typeof module !== "undefined") {
     createBootsSymbolArt,
     createCactusSymbolArt,
     createCowboySymbolArt,
+    createDefaultAudioSettings,
     createEmptyFeatureGrid,
     createMatchedPositions,
     createNearMissPlanForPattern,
@@ -2939,23 +3335,34 @@ if (typeof module !== "undefined") {
     determineJackpotTier,
     escapeHtml,
     evaluateBoard,
+    getEffectiveVolume,
+    getSpinTiming,
     getSymbolDefinition,
     getSymbolArtAttributes,
     getFreeSpinAward,
     getLeftToRightMatch,
     getLineMultiplier,
+    getVolumeButtonState,
     hasContiguousMatchedPositions,
     isNearMissEligible,
     isKeyboardShortcutBlockedTarget,
     isSpinShortcutEvent,
+    isValidSpinSpeedMode,
     isValidWinPosition,
     isWildHorizontalLine,
+    loadSpinSpeedPreference,
     resolveDailyLoginReward,
     resolveBadgeArtText,
+    sanitizeAudioSettings,
+    saveSpinSpeedPreference,
     serializeHtmlAttributes,
     selectNearMissPlan,
+    setAudioVolumeState,
+    sliderValueToVolume,
     shouldHandleSpinShortcut,
     shouldGrantDailyReward,
-    validateNearMissConfig
+    toggleAudioMuteState,
+    validateNearMissConfig,
+    volumeToSliderValue
   };
 }
