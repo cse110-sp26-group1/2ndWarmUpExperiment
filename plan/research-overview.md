@@ -148,3 +148,5 @@ Slot machines use multiple techniques to keep users playing:
 - 2010s+: Mobile gaming, freemium models, and gamification (achievements, leaderboards)
 
 ---
+## Payline Logic
+[Link to logic](https://www.cachecreek.com/slot-machine-paylines)

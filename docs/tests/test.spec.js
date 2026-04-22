@@ -15,6 +15,11 @@ function createRelativeDateKey(dayOffset) {
 
 const TEST_CONFIG = {
   bet: 10,
+  startingBalance: game.GAME_LIMITS.defaultBalance,
+  losingPaidSpinBalance: game.GAME_LIMITS.defaultBalance - game.GAME_LIMITS.minBet,
+  standardWinPaidSpinBalance: game.GAME_LIMITS.defaultBalance - game.GAME_LIMITS.minBet + 60,
+  fiveReelPaidSpinBalance: game.GAME_LIMITS.defaultBalance - game.GAME_LIMITS.minBet + 700,
+  manualMiniJackpotAmount: 777,
   fileUrl: `file://${path.join(__dirname, "..", "index.html")}`,
   todayDateKey: createRelativeDateKey(0),
   previousDateKey: createRelativeDateKey(-1),
@@ -117,6 +122,27 @@ const TEST_CONFIG = {
     ["a", "k", "q", "j", "10"]
   ]
 };
+
+/**
+ * Runs a callback with a deterministic window.localStorage test double.
+ * @param {{getItem?: Function, setItem?: Function}} localStorageMock
+ * @param {() => void} callback
+ */
+function withMockWindowStorage(localStorageMock, callback) {
+  const originalWindow = global.window;
+  global.window = { localStorage: localStorageMock };
+
+  try {
+    callback();
+  } finally {
+    if (typeof originalWindow === "undefined") {
+      delete global.window;
+      return;
+    }
+
+    global.window = originalWindow;
+  }
+}
 
 /**
  * Opens the game page with a controlled saved login date.
@@ -267,12 +293,149 @@ async function prepareNearMissSpin(page, options = {}) {
 }
 
 test.describe("unit", () => {
+  test("centralizes every configured symbol id without broken symbol refs", async () => {
+    const requiredSymbolIds = ["badge", "cowboy", "cactus", "boots"];
+    const configuredSymbolIds = new Set(game.SYMBOLS.map((symbol) => symbol.id));
+
+    for (const symbolId of requiredSymbolIds) {
+      expect(game.SYMBOL_IDS[symbolId]).toBe(symbolId);
+      expect(configuredSymbolIds.has(symbolId)).toBe(true);
+    }
+
+    expect(Object.values(game.SYMBOL_IDS).every((symbolId) => configuredSymbolIds.has(symbolId))).toBe(true);
+    expect(game.SYMBOLS.every((symbol) => symbol.id === game.SYMBOL_IDS[symbol.id] || Object.values(game.SYMBOL_IDS).includes(symbol.id))).toBe(true);
+  });
+
   test("clamps bets and keeps free-spin awards configurable", async () => {
     expect(game.clampBet(0)).toBe(game.GAME_LIMITS.minBet);
     expect(game.clampBet(999)).toBe(game.GAME_LIMITS.maxBet);
     expect(game.getFreeSpinAward(3)).toBe(8);
     expect(game.getFreeSpinAward(4)).toBe(12);
     expect(game.getFreeSpinAward(5)).toBe(20);
+  });
+
+  test("sanitizes audio settings and volume changes across corrupted input", async () => {
+    expect(game.clampVolume(-1)).toBe(game.AUDIO_SETTINGS_CONFIG.minVolume);
+    expect(game.clampVolume(2)).toBe(game.AUDIO_SETTINGS_CONFIG.maxVolume);
+    expect(game.clampVolume("bad")).toBe(game.AUDIO_SETTINGS_CONFIG.defaultVolume);
+    expect(game.sanitizeAudioSettings(null)).toEqual(game.createDefaultAudioSettings());
+    expect(game.sanitizeAudioSettings({
+      volume: Number.POSITIVE_INFINITY,
+      isMuted: true,
+      previousVolume: -100
+    })).toEqual({
+      volume: game.AUDIO_SETTINGS_CONFIG.minVolume,
+      isMuted: true,
+      previousVolume: game.AUDIO_SETTINGS_CONFIG.defaultVolume
+    });
+
+    expect(game.setAudioVolumeState({ volume: 0.8, isMuted: false, previousVolume: 0.8 }, 0)).toEqual({
+      volume: 0,
+      isMuted: true,
+      previousVolume: 0.8
+    });
+    expect(game.setAudioVolumeState({ volume: 0, isMuted: true, previousVolume: 0.4 }, 1.5)).toEqual({
+      volume: 1,
+      isMuted: false,
+      previousVolume: 1
+    });
+    expect(game.toggleAudioMuteState({ volume: 0.7, isMuted: false, previousVolume: 0.7 })).toEqual({
+      volume: 0,
+      isMuted: true,
+      previousVolume: 0.7
+    });
+    expect(game.toggleAudioMuteState({ volume: 0, isMuted: true, previousVolume: 0.35 })).toEqual({
+      volume: 0.35,
+      isMuted: false,
+      previousVolume: 0.35
+    });
+  });
+
+  test("falls back safely when localStorage reads, writes, or contains corrupted data", async () => {
+    const throwingStorage = {
+      getItem: () => {
+        throw new Error("read failed");
+      },
+      setItem: () => {
+        throw new Error("write failed");
+      }
+    };
+
+    withMockWindowStorage(throwingStorage, () => {
+      expect(game.loadAudioSettings()).toEqual(game.createDefaultAudioSettings());
+      expect(game.loadSpinSpeedPreference()).toBe(game.SPIN_SPEED_CONFIG.defaultMode);
+      expect(game.loadJackpotPots()).toEqual(game.JACKPOT_CONFIG.startingValues);
+      expect(() => game.saveAudioSettings({ volume: 0.9, isMuted: false, previousVolume: 0.9 })).not.toThrow();
+      expect(() => game.saveSpinSpeedPreference("skip")).not.toThrow();
+      expect(() => game.saveJackpotPots(game.JACKPOT_CONFIG.startingValues)).not.toThrow();
+    });
+
+    withMockWindowStorage({
+      getItem: (key) => {
+        if (key === game.STORAGE_KEYS.audioSettings || key === game.STORAGE_KEYS.jackpots) {
+          return "{bad-json";
+        }
+
+        return "__invalid-spin-speed__";
+      },
+      setItem: () => {}
+    }, () => {
+      expect(game.loadAudioSettings()).toEqual(game.createDefaultAudioSettings());
+      expect(game.loadSpinSpeedPreference()).toBe(game.SPIN_SPEED_CONFIG.defaultMode);
+      expect(game.loadJackpotPots()).toEqual(game.JACKPOT_CONFIG.startingValues);
+    });
+  });
+
+  test("contributes jackpot math from real state without corrupting edge cases", async () => {
+    const originalJackpots = { ...game.state.jackpots };
+    const savedValues = [];
+
+    withMockWindowStorage({
+      getItem: () => null,
+      setItem: (_key, value) => {
+        savedValues.push(JSON.parse(value));
+      }
+    }, () => {
+      game.state.jackpots = { ...game.JACKPOT_CONFIG.startingValues };
+      expect(game.contributeToJackpots(10)).toBe(true);
+      expect(game.state.jackpots).toEqual({
+        mini: game.JACKPOT_CONFIG.startingValues.mini + game.getJackpotContribution(10, game.JACKPOTS.mini),
+        major: game.JACKPOT_CONFIG.startingValues.major + game.getJackpotContribution(10, game.JACKPOTS.major),
+        grand: game.JACKPOT_CONFIG.startingValues.grand + game.getJackpotContribution(10, game.JACKPOTS.grand)
+      });
+
+      game.state.jackpots = { mini: Number.NaN, major: -1, grand: game.JACKPOT_CONFIG.startingValues.grand + 5 };
+      expect(game.contributeToJackpots("__bad-bet__")).toBe(false);
+      expect(game.state.jackpots).toEqual({
+        mini: game.JACKPOT_CONFIG.startingValues.mini,
+        major: game.JACKPOT_CONFIG.startingValues.major,
+        grand: game.JACKPOT_CONFIG.startingValues.grand + 5
+      });
+    });
+
+    expect(savedValues.length).toBeGreaterThanOrEqual(2);
+    game.state.jackpots = originalJackpots;
+  });
+
+  test("applies spin speed through the configured path with invalid input fallback", async () => {
+    const writes = [];
+    const originalSpinSpeed = game.state.spinSpeed;
+
+    withMockWindowStorage({
+      getItem: () => null,
+      setItem: (key, value) => writes.push({ key, value })
+    }, () => {
+      game.applySpinSpeed("skip");
+      expect(game.state.spinSpeed).toBe("skip");
+      game.applySpinSpeed("__invalid__");
+      expect(game.state.spinSpeed).toBe(game.SPIN_SPEED_CONFIG.defaultMode);
+    });
+
+    expect(writes).toEqual([
+      { key: game.STORAGE_KEYS.spinSpeed, value: "skip" },
+      { key: game.STORAGE_KEYS.spinSpeed, value: game.SPIN_SPEED_CONFIG.defaultMode }
+    ]);
+    game.state.spinSpeed = originalSpinSpeed;
   });
 
   test("applies multiplier wilds and free-spin multiplier with a cap", async () => {
@@ -284,6 +447,25 @@ test.describe("unit", () => {
     expect(result.totalWin).toBe(45280);
     expect(result.appliedMultiplier).toBe(50);
     expect(result.lineWins.find((lineWin) => lineWin.lineName === "middle").multiplier).toBe(50);
+  });
+
+  test("keeps multiplier wild overflow bounded before free-spin multiplication", async () => {
+    const overflowFeatures = [
+      [{ multiplier: 5 }, { multiplier: 5 }, { multiplier: 5 }, { multiplier: 5 }, { multiplier: 5 }],
+      [null, null, null, null, null],
+      [null, null, null, null, null]
+    ];
+    const result = game.evaluateBoard([
+      ["wild", "wild", "wild", "wild", "wild"],
+      ["a", "k", "q", "j", "10"],
+      ["a", "k", "q", "j", "10"]
+    ], TEST_CONFIG.bet, {
+      boardFeatures: overflowFeatures,
+      isFreeSpinRound: true
+    });
+
+    expect(result.lineWins[0].multiplier).toBe(game.MULTIPLIER_CONFIG.cap * game.FREE_SPIN_CONFIG.multiplier);
+    expect(result.lineWins[0].payout).toBe(TEST_CONFIG.bet * game.SYMBOLS.find((symbol) => symbol.id === game.SYMBOL_IDS.wild).payouts[5] * result.lineWins[0].multiplier);
   });
 
   test("preserves base line payout math for normal wins", async () => {
@@ -307,6 +489,29 @@ test.describe("unit", () => {
       { reel: 1, row: 0 },
       { reel: 2, row: 0 }
     ]);
+  });
+
+  test("builds evaluateBoard results from payline, scatter, and bonus evaluators without output drift", async () => {
+    const board = TEST_CONFIG.freeSpinBoard;
+    const paylineResult = game.evaluatePaylines(board, TEST_CONFIG.bet);
+    const scatterResult = game.evaluateScatters(board, TEST_CONFIG.bet);
+    const bonusResult = game.evaluateBonuses(board);
+    const combinedResult = game.evaluateBoard(board, TEST_CONFIG.bet);
+    const expectedWinningCellKeys = new Set([
+      ...paylineResult.winningCellKeys,
+      ...scatterResult.winningCellKeys
+    ]);
+
+    expect(combinedResult).toEqual({
+      totalWin: paylineResult.totalWin + scatterResult.totalWin,
+      freeSpinsAwarded: scatterResult.freeSpinsAwarded,
+      appliedMultiplier: paylineResult.appliedMultiplier,
+      scatterCount: scatterResult.scatterCount,
+      bonusTriggered: bonusResult.bonusTriggered,
+      winningCells: game.createWinningCells(expectedWinningCellKeys),
+      activeHorizontalLines: Array.from(paylineResult.activeHorizontalLines),
+      lineWins: paylineResult.lineWins
+    });
   });
 
   test("keeps matched positions contiguous and stops at the first non-matching reel", async () => {
@@ -633,6 +838,7 @@ test.describe("unit", () => {
     expect(game.isSpinShortcutEvent({ key: " " })).toBe(true);
     expect(game.isSpinShortcutEvent({ key: "Spacebar" })).toBe(true);
     expect(game.isSpinShortcutEvent({ key: "Enter" })).toBe(false);
+    expect(game.shouldHandleSpinShortcut({ key: " ", repeat: false, target: null })).toBe(true);
     expect(game.shouldHandleSpinShortcut({ key: " ", repeat: false, target: inertTarget })).toBe(true);
     expect(game.shouldHandleSpinShortcut({ key: " ", repeat: true, target: inertTarget })).toBe(false);
     expect(game.shouldHandleSpinShortcut({ key: " ", repeat: false, target: blockedTarget })).toBe(false);
@@ -745,6 +951,35 @@ test.describe("retention", () => {
 });
 
 test.describe("smoke", () => {
+  test("app loads without crashing when localStorage is unavailable", async ({ page }) => {
+    const consoleErrors = [];
+    page.on("console", (message) => {
+      if (message.type() === "error" && !message.text().includes(game.UI_TEXT.warnings.initializeFailed)) {
+        consoleErrors.push(message.text());
+      }
+    });
+
+    await page.addInitScript(() => {
+      Object.defineProperty(window, "localStorage", {
+        configurable: true,
+        value: {
+          getItem: () => {
+            throw new Error("read failed");
+          },
+          setItem: () => {
+            throw new Error("write failed");
+          }
+        }
+      });
+    });
+    await page.goto(TEST_CONFIG.fileUrl);
+
+    await expect(page.locator("#game-title")).toHaveText("Gunslinger Gold");
+    await expect(page.locator("#spinButton")).toBeEnabled();
+    await expect(page.locator("#balanceDisplay")).toHaveText(String(game.GAME_LIMITS.defaultBalance));
+    expect(consoleErrors).toEqual([]);
+  });
+
   test("app loads with core UI, clickable spin, and no console errors", async ({ page }) => {
     const consoleErrors = [];
     page.on("console", (message) => {
@@ -1076,6 +1311,43 @@ test.describe("bonus modal ui", () => {
     await expect(firstCrate.locator(".crate-value")).toHaveText(game.BONUS_UI_CONFIG.rewardTypes.mystery.emptyValueText);
   });
 
+  test("treats unknown bonus pick prize types as warned no-ops", async ({ page }) => {
+    const warnings = [];
+    page.on("console", (message) => {
+      if (message.type() === "warning") {
+        warnings.push(message.text());
+      }
+    });
+
+    await gotoGame(page);
+    await openOrderedBonusRound(page, {
+      statePatch: {
+        prizes: [
+          { type: TEST_CONFIG.bonusRewardTypes.unknown, label: "Unknown Loot", value: 999 },
+          ...createOrderedBonusPrizes().slice(1)
+        ]
+      }
+    });
+
+    const beforePick = await page.evaluate(() => ({
+      picksMade: state.bonusRound.picksMade,
+      totalCoins: state.bonusRound.totalCoins,
+      revealedCrates: [...state.bonusRound.revealedCrates]
+    }));
+
+    await page.locator(".crate-button").first().click();
+
+    const afterPick = await page.evaluate(() => ({
+      picksMade: state.bonusRound.picksMade,
+      totalCoins: state.bonusRound.totalCoins,
+      revealedCrates: [...state.bonusRound.revealedCrates]
+    }));
+
+    expect(afterPick).toEqual(beforePick);
+    await expect(page.locator(".crate-button").first()).not.toBeDisabled();
+    expect(warnings.some((warning) => warning.includes(game.UI_TEXT.warnings.unknownBonusPrizeType))).toBe(true);
+  });
+
   test("completes the pick-a-crate flow and restores game interaction state", async ({ page }) => {
     const prizes = createOrderedBonusPrizes();
     await gotoGame(page);
@@ -1136,6 +1408,21 @@ test.describe("bonus modal ui", () => {
     await expect(page.locator("#bonusCrates")).toBeFocused();
   });
 
+  test("traps focus inside the bonus overlay and blocks background interaction", async ({ page }) => {
+    await gotoGame(page);
+    await openOrderedBonusRound(page);
+
+    await expect(page.locator(".game-shell")).toHaveAttribute("aria-hidden", "true");
+    expect(await page.locator(".game-shell").evaluate((node) => node.inert)).toBe(true);
+
+    await page.locator(".crate-button").last().focus();
+    await page.keyboard.press("Tab");
+    await expect(page.locator("#bonusCrates")).toBeFocused();
+
+    await page.locator("#spinButton").focus();
+    await expect.poll(() => page.evaluate(() => document.activeElement.closest("#bonusPanel") !== null)).toBe(true);
+  });
+
   test("allows reaching and selecting the last crate after scrolling on a small viewport", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 520 });
     await gotoGame(page);
@@ -1180,7 +1467,7 @@ test.describe("end-to-end", () => {
 
     await expect(page.locator("#spinButton")).toHaveText("Spin");
     await expect(page.locator("#statusMessage")).toHaveText("No win this round");
-    await expect(page.locator("#balanceDisplay")).toHaveText("990");
+    await expect(page.locator("#balanceDisplay")).toHaveText(String(TEST_CONFIG.losingPaidSpinBalance));
     await expect(page.locator(".near-miss-tease")).toHaveCount(0);
     await expect(page.locator(".symbol-cell.win")).toHaveCount(0);
     await expect(page.locator(".payline-segment")).toHaveCount(0);
@@ -1198,7 +1485,7 @@ test.describe("end-to-end", () => {
 
     await expect(page.locator("#spinButton")).toHaveText("Spin");
     await expect(page.locator("#winPopupAmount")).toHaveText("60");
-    await expect(page.locator("#balanceDisplay")).toHaveText("1050");
+    await expect(page.locator("#balanceDisplay")).toHaveText(String(TEST_CONFIG.standardWinPaidSpinBalance));
     await expect(page.locator(".symbol-cell.win")).toHaveCount(3);
     await expect(page.locator('[data-reel="3"][data-row="0"]')).not.toHaveClass(/win/);
     await expect(page.locator('[data-reel="4"][data-row="0"]')).not.toHaveClass(/win/);
@@ -1223,7 +1510,7 @@ test.describe("end-to-end", () => {
 
     await expect(page.locator("#spinButton")).toHaveText("Spin");
     await expect(page.locator("#winPopupAmount")).toHaveText("700");
-    await expect(page.locator("#balanceDisplay")).toHaveText("1690");
+    await expect(page.locator("#balanceDisplay")).toHaveText(String(TEST_CONFIG.fiveReelPaidSpinBalance));
     await expect(page.locator(".symbol-cell.win")).toHaveCount(5);
     await expect(page.locator(".payline-segment")).toHaveCount(4);
 
@@ -1275,7 +1562,7 @@ test.describe("end-to-end", () => {
 
     await expect(page.locator("#spinButton")).toHaveText("Spin", { timeout: 5000 });
     await expect(page.locator("#statusMessage")).toHaveText("No win this round");
-    await expect(page.locator("#balanceDisplay")).toHaveText("990");
+    await expect(page.locator("#balanceDisplay")).toHaveText(String(TEST_CONFIG.losingPaidSpinBalance));
     await expect(page.locator("#winPopup")).not.toHaveClass(/show/);
     await expect(page.locator('[data-reel="2"][data-row="0"]')).toHaveAttribute("data-symbol", "k");
     await expect(page.locator('[data-reel="2"][data-row="0"]')).toHaveAttribute("data-near-miss", "settle");
@@ -1288,7 +1575,7 @@ test.describe("end-to-end", () => {
 
     await expect(page.locator("#spinButton")).toHaveText("Spin");
     await expect(page.locator(".near-miss-tease")).toHaveCount(0);
-    await expect(page.locator("#balanceDisplay")).toHaveText("990");
+    await expect(page.locator("#balanceDisplay")).toHaveText(String(TEST_CONFIG.losingPaidSpinBalance));
 
     await prepareNearMissSpin(page, { fastPlay: false, holdMs: 1200, slideMs: 400 });
     await page.click("#spinButton");
@@ -1296,15 +1583,15 @@ test.describe("end-to-end", () => {
     await page.click("#spinButton");
     await expect(page.locator("#spinButton")).toHaveText("Spin");
     await expect(page.locator(".near-miss-tease")).toHaveCount(0);
-    await expect(page.locator("#balanceDisplay")).toHaveText("990");
+    await expect(page.locator("#balanceDisplay")).toHaveText(String(TEST_CONFIG.losingPaidSpinBalance));
     await page.waitForTimeout(1900);
-    await expect(page.locator("#balanceDisplay")).toHaveText("990");
+    await expect(page.locator("#balanceDisplay")).toHaveText(String(TEST_CONFIG.losingPaidSpinBalance));
   });
 
   test("shows jackpot meters and upgrades free spins to 8 on three scatters", async ({ page }) => {
-    await expect(page.locator("#miniJackpotDisplay")).toHaveText("500");
-    await expect(page.locator("#majorJackpotDisplay")).toHaveText("2500");
-    await expect(page.locator("#grandJackpotDisplay")).toHaveText("25000");
+    await expect(page.locator("#miniJackpotDisplay")).toHaveText(String(game.JACKPOT_CONFIG.startingValues.mini));
+    await expect(page.locator("#majorJackpotDisplay")).toHaveText(String(game.JACKPOT_CONFIG.startingValues.major));
+    await expect(page.locator("#grandJackpotDisplay")).toHaveText(String(game.JACKPOT_CONFIG.startingValues.grand));
     await expect(page.locator("#freeSpinsMeter")).toHaveAttribute("hidden", "");
 
     await settleBoard(page, TEST_CONFIG.freeSpinBoard, true);
@@ -1347,12 +1634,12 @@ test.describe("end-to-end", () => {
   });
 
   test("awards and displays a mini jackpot", async ({ page }) => {
-    await page.evaluate(() => {
-      state.jackpots.mini = 777;
+    await page.evaluate(({ jackpotAmount }) => {
+      state.jackpots.mini = jackpotAmount;
       const amount = awardJackpot("mini");
       triggerJackpotFeedback("mini", amount);
       updateDisplays();
-    });
+    }, { jackpotAmount: TEST_CONFIG.manualMiniJackpotAmount });
 
     await expect(page.locator("#jackpotCelebration")).toHaveClass(/show/);
     await expect(page.locator("#winPopupLabel")).toHaveText("MINI Jackpot");
@@ -1365,12 +1652,59 @@ test.describe("regression", () => {
     await gotoGame(page);
   });
 
+  test("settings overlay traps tab focus and blocks background controls", async ({ page }) => {
+    await page.click("#settingsButton");
+
+    await expect(page.locator("#settingsOverlay")).toHaveClass(/show/);
+    await expect(page.locator(".game-shell")).toHaveAttribute("aria-hidden", "true");
+    expect(await page.locator(".game-shell").evaluate((node) => node.inert)).toBe(true);
+
+    await page.locator("#spinSpeedSkip").focus();
+    await page.keyboard.press("Tab");
+    await expect(page.locator("#volumeSlider")).toBeFocused();
+
+    await page.locator("#spinButton").focus();
+    await expect.poll(() => page.evaluate(() => document.activeElement.closest("#settingsOverlay") !== null)).toBe(true);
+
+    await page.keyboard.press("Escape");
+    await expect(page.locator("#settingsOverlay")).not.toHaveClass(/show/);
+    expect(await page.locator(".game-shell").evaluate((node) => node.inert)).toBe(false);
+  });
+
   test("preserves spin speed preference via localStorage", async ({ page }) => {
     await page.click("#settingsButton");
     await page.click("#spinSpeedSkip");
     await page.reload();
 
     await expect(page.locator("#spinSpeedSkip")).toHaveAttribute("aria-pressed", "true");
+  });
+
+  test("applySpinSpeed updates state, UI, and persistence while invalid input falls back", async ({ page }) => {
+    await page.evaluate(() => {
+      applySpinSpeed("skip");
+    });
+
+    await expect(page.locator("#spinSpeedSkip")).toHaveAttribute("aria-pressed", "true");
+    expect(await page.evaluate(() => ({
+      spinSpeed: state.spinSpeed,
+      stored: window.localStorage.getItem(STORAGE_KEYS.spinSpeed)
+    }))).toEqual({
+      spinSpeed: "skip",
+      stored: "skip"
+    });
+
+    await page.evaluate(() => {
+      applySpinSpeed("__invalid-speed__");
+    });
+
+    await expect(page.locator("#spinSpeedNormal")).toHaveAttribute("aria-pressed", "true");
+    expect(await page.evaluate(() => ({
+      spinSpeed: state.spinSpeed,
+      stored: window.localStorage.getItem(STORAGE_KEYS.spinSpeed)
+    }))).toEqual({
+      spinSpeed: game.SPIN_SPEED_CONFIG.defaultMode,
+      stored: game.SPIN_SPEED_CONFIG.defaultMode
+    });
   });
 
   test("preserves skip-to-finish behavior while spinning", async ({ page }) => {
@@ -1383,6 +1717,105 @@ test.describe("regression", () => {
     await expect(page.locator("#spinButton")).toHaveText("Skip");
     await page.click("#spinButton");
     await expect(page.locator("#spinButton")).toHaveText("Spin");
+  });
+
+  test("finishActiveSpin clears scheduled work and is safe on repeat calls", async ({ page }) => {
+    await page.evaluate(({ board }) => {
+      window.__timerCleanupCounts = { intervals: 0, timeouts: 0 };
+      const originalClearInterval = window.clearInterval.bind(window);
+      const originalClearTimeout = window.clearTimeout.bind(window);
+      window.clearInterval = (timerId) => {
+        window.__timerCleanupCounts.intervals += 1;
+        originalClearInterval(timerId);
+      };
+      window.clearTimeout = (timerId) => {
+        window.__timerCleanupCounts.timeouts += 1;
+        originalClearTimeout(timerId);
+      };
+      applySpinSpeed("normal");
+      SPIN_SPEED_CONFIG.modes.normal.reelStopBaseMs = 2000;
+      SPIN_SPEED_CONFIG.modes.normal.reelStopStepMs = 500;
+      state.balance = 1000;
+      state.bet = 10;
+      state.freeSpins = 0;
+      state.isBonusActive = false;
+      state.bonusRound = null;
+      NEAR_MISS_CONFIG.enabled = false;
+      createBoard = () => board.map((row) => [...row]);
+      rollRandomJackpotTier = () => null;
+      updateDisplays();
+    }, { board: TEST_CONFIG.nearMissBoard });
+
+    await page.click("#spinButton");
+    await expect(page.locator("#spinButton")).toHaveText("Skip");
+
+    const cleanupSummary = await page.evaluate(() => {
+      finishActiveSpin();
+      finishActiveSpin();
+      return {
+        cleanupCounts: window.__timerCleanupCounts,
+        isSpinning: state.isSpinning,
+        hasActiveSpin: Boolean(activeSpin)
+      };
+    });
+
+    expect(cleanupSummary.cleanupCounts.intervals).toBe(game.GAME_LIMITS.reelCount);
+    expect(cleanupSummary.cleanupCounts.timeouts).toBeGreaterThanOrEqual(game.GAME_LIMITS.reelCount);
+    expect(cleanupSummary.isSpinning).toBe(false);
+    expect(cleanupSummary.hasActiveSpin).toBe(false);
+    await expect(page.locator("#spinButton")).toHaveText("Spin");
+  });
+
+  test("destroyGame removes listeners, clears timers, and tolerates missing DOM on repeat cleanup", async ({ page }) => {
+    await page.evaluate(({ board }) => {
+      window.__timerCleanupCounts = { intervals: 0, timeouts: 0 };
+      const originalClearInterval = window.clearInterval.bind(window);
+      const originalClearTimeout = window.clearTimeout.bind(window);
+      window.clearInterval = (timerId) => {
+        window.__timerCleanupCounts.intervals += 1;
+        originalClearInterval(timerId);
+      };
+      window.clearTimeout = (timerId) => {
+        window.__timerCleanupCounts.timeouts += 1;
+        originalClearTimeout(timerId);
+      };
+      applySpinSpeed("normal");
+      SPIN_SPEED_CONFIG.modes.normal.reelStopBaseMs = 2000;
+      SPIN_SPEED_CONFIG.modes.normal.reelStopStepMs = 500;
+      state.balance = 1000;
+      state.bet = 10;
+      state.freeSpins = 0;
+      state.isBonusActive = false;
+      state.bonusRound = null;
+      createBoard = () => board.map((row) => [...row]);
+      rollRandomJackpotTier = () => null;
+      updateDisplays();
+    }, { board: TEST_CONFIG.nearMissBoard });
+
+    await page.click("#spinButton");
+    await expect(page.locator("#spinButton")).toHaveText("Skip");
+
+    const cleanupSummary = await page.evaluate(() => {
+      destroyGame();
+      document.getElementById("settingsOverlay").remove();
+      document.getElementById("bonusOverlay").remove();
+      destroyGame();
+      return {
+        cleanupCounts: window.__timerCleanupCounts,
+        isSpinning: state.isSpinning,
+        hasActiveSpin: Boolean(activeSpin),
+        backgroundInert: document.querySelector(".game-shell").inert
+      };
+    });
+
+    expect(cleanupSummary.cleanupCounts.intervals).toBe(game.GAME_LIMITS.reelCount);
+    expect(cleanupSummary.cleanupCounts.timeouts).toBeGreaterThanOrEqual(game.GAME_LIMITS.reelCount);
+    expect(cleanupSummary.isSpinning).toBe(false);
+    expect(cleanupSummary.hasActiveSpin).toBe(false);
+    expect(cleanupSummary.backgroundInert).toBe(false);
+
+    await page.click("#spinButton");
+    await expect.poll(() => page.evaluate(() => state.isSpinning)).toBe(false);
   });
 
   test("skip-to-finish keeps payline drawing clipped to the evaluated match", async ({ page }) => {

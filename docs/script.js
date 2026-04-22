@@ -190,6 +190,8 @@ const AUDIO_CUES = Object.freeze({
   jackpot: "jackpot"
 });
 
+const SOUNDS = AUDIO_CUES;
+
 /**
  * Centralized user-facing and diagnostic strings.
  */
@@ -197,6 +199,7 @@ const UI_TEXT = Object.freeze({
   warnings: {
     expectedStringSymbolId: "Expected a string symbol id while rendering.",
     unknownSymbolId: "Unknown symbol id",
+    unknownBonusPrizeType: "Unknown bonus prize type",
     audioPlaybackFailed: "Audio playback failed.",
     keyboardSpinActivationFailed: "Keyboard spin activation failed.",
     initializeFailed: "Failed to initialize Gunslinger Gold."
@@ -210,6 +213,12 @@ const UI_TEXT = Object.freeze({
     bonusWinPrefix: "Bonus win",
     jackpotPaidSuffix: "jackpot paid"
   }
+});
+
+const JACKPOTS = Object.freeze({
+  mini: "mini",
+  major: "major",
+  grand: "grand"
 });
 
 const STORAGE_KEYS = {
@@ -292,6 +301,7 @@ const JACKPOT_CONFIG = {
     major: 2500,
     grand: 25000
   },
+  minimumContribution: 1,
   contributionRates: {
     mini: 0.04,
     major: 0.01,
@@ -303,6 +313,14 @@ const JACKPOT_CONFIG = {
   },
   celebrationCoins: 34
 };
+
+const FEEDBACK_CONFIG = Object.freeze({
+  winPopupDurationMs: 2300,
+  bigWinThresholdBetMultiplier: 20,
+  bigWinCelebrationCoins: 22,
+  bigWinCelebrationDurationMs: 2600,
+  jackpotCelebrationDurationMs: 3400
+});
 
 const BONUS_CONFIG = {
   triggerCount: 3,
@@ -562,6 +580,18 @@ const BONUS_MODAL_LAYOUT_CONFIG = Object.freeze({
   viewportPaddingPx: 24
 });
 
+const FOCUS_TRAP_CONFIG = Object.freeze({
+  focusableSelector: [
+    "a[href]",
+    "button:not([disabled])",
+    "input:not([disabled])",
+    "select:not([disabled])",
+    "textarea:not([disabled])",
+    "[tabindex]:not([tabindex='-1'])"
+  ].join(", "),
+  blockedElementSelector: ".game-shell"
+});
+
 const RETENTION_CONFIG = {
   feedbackDurationMs: 3200,
   dailyLoginReward: {
@@ -809,6 +839,9 @@ let rewardFeedbackTimeout = 0;
 let activeSpin = null;
 let keyboardShortcutCleanup = null;
 let pagehideCleanupRegistered = false;
+let activeFocusTrap = null;
+let isGameInitialized = false;
+const managedEventCleanups = [];
 
 state.board = createBoard();
 state.boardFeatures = createBoardFeatureGrid(state.board);
@@ -1692,7 +1725,7 @@ function getVolumeButtonState(audioSettings, config = AUDIO_SETTINGS_CONFIG) {
  * @param {Document} [root]
  * @returns {boolean}
  */
-function renderSettingsControls(root = document) {
+function renderSettingsControls(root = (typeof document !== "undefined" ? document : null)) {
   if (!root || typeof root.getElementById !== "function") {
     return false;
   }
@@ -1738,7 +1771,7 @@ function applyAudioSettings(nextAudioSettings) {
  * @param {{target?: {value?: string}}} event
  */
 function handleVolumeSliderInput(event) {
-  if (!event || !event.target) {
+  if (!event?.target) {
     return;
   }
 
@@ -1767,9 +1800,7 @@ function applySpinSpeed(spinSpeed) {
  * @param {{target?: EventTarget | null}} event
  */
 function handleSpinSpeedButtonClick(event) {
-  const button = event && event.target && typeof event.target.closest === "function"
-    ? event.target.closest("[data-spin-speed]")
-    : null;
+  const button = event?.target?.closest?.("[data-spin-speed]") || null;
 
   if (!button) {
     return;
@@ -1790,11 +1821,7 @@ function loadJackpotPots() {
     }
 
     const parsedValue = JSON.parse(rawValue);
-    return {
-      mini: Number.isFinite(parsedValue.mini) ? Math.max(JACKPOT_CONFIG.startingValues.mini, parsedValue.mini) : JACKPOT_CONFIG.startingValues.mini,
-      major: Number.isFinite(parsedValue.major) ? Math.max(JACKPOT_CONFIG.startingValues.major, parsedValue.major) : JACKPOT_CONFIG.startingValues.major,
-      grand: Number.isFinite(parsedValue.grand) ? Math.max(JACKPOT_CONFIG.startingValues.grand, parsedValue.grand) : JACKPOT_CONFIG.startingValues.grand
-    };
+    return sanitizeJackpotPots(parsedValue);
   } catch (_error) {
     return { ...JACKPOT_CONFIG.startingValues };
   }
@@ -2650,15 +2677,15 @@ function isWildHorizontalLine(board, rowIndex) {
 function determineJackpotTier(board) {
   const allRowsWild = board.every((row) => row.every((symbolId) => symbolId === SYMBOL_IDS.wild));
   if (allRowsWild) {
-    return "grand";
+    return JACKPOTS.grand;
   }
 
   if (isWildHorizontalLine(board, 0) || isWildHorizontalLine(board, 2)) {
-    return "major";
+    return JACKPOTS.major;
   }
 
   if (isWildHorizontalLine(board, 1)) {
-    return "mini";
+    return JACKPOTS.mini;
   }
 
   return null;
@@ -2670,25 +2697,71 @@ function determineJackpotTier(board) {
  */
 function rollRandomJackpotTier() {
   if (randomInteger(JACKPOT_CONFIG.randomOdds.major) === 0) {
-    return "major";
+    return JACKPOTS.major;
   }
 
   if (randomInteger(JACKPOT_CONFIG.randomOdds.mini) === 0) {
-    return "mini";
+    return JACKPOTS.mini;
   }
 
   return null;
 }
 
 /**
+ * Returns jackpot pots with every tier coerced to a safe numeric value.
+ * @param {Partial<Record<"mini" | "major" | "grand", number>> | null | undefined} jackpots
+ * @returns {{mini: number, major: number, grand: number}}
+ */
+function sanitizeJackpotPots(jackpots) {
+  const source = jackpots && typeof jackpots === "object" ? jackpots : {};
+
+  return {
+    mini: Number.isFinite(source.mini) ? Math.max(JACKPOT_CONFIG.startingValues.mini, source.mini) : JACKPOT_CONFIG.startingValues.mini,
+    major: Number.isFinite(source.major) ? Math.max(JACKPOT_CONFIG.startingValues.major, source.major) : JACKPOT_CONFIG.startingValues.major,
+    grand: Number.isFinite(source.grand) ? Math.max(JACKPOT_CONFIG.startingValues.grand, source.grand) : JACKPOT_CONFIG.startingValues.grand
+  };
+}
+
+/**
+ * Computes the jackpot contribution for a single tier.
+ * @param {number} bet
+ * @param {"mini" | "major" | "grand"} tier
+ * @returns {number}
+ */
+function getJackpotContribution(bet, tier) {
+  const numericBet = Number(bet);
+
+  if (!Number.isFinite(numericBet) || numericBet <= 0 || !Number.isFinite(JACKPOT_CONFIG.contributionRates[tier])) {
+    return 0;
+  }
+
+  return Math.max(JACKPOT_CONFIG.minimumContribution, Math.round(numericBet * JACKPOT_CONFIG.contributionRates[tier]));
+}
+
+/**
  * Applies per-spin contributions to progressive jackpots.
  * @param {number} bet
+ * @returns {boolean}
  */
 function contributeToJackpots(bet) {
-  state.jackpots.mini += Math.max(1, Math.round(bet * JACKPOT_CONFIG.contributionRates.mini));
-  state.jackpots.major += Math.max(1, Math.round(bet * JACKPOT_CONFIG.contributionRates.major));
-  state.jackpots.grand += Math.max(1, Math.round(bet * JACKPOT_CONFIG.contributionRates.grand));
+  const contributions = {
+    mini: getJackpotContribution(bet, JACKPOTS.mini),
+    major: getJackpotContribution(bet, JACKPOTS.major),
+    grand: getJackpotContribution(bet, JACKPOTS.grand)
+  };
+
+  state.jackpots = sanitizeJackpotPots(state.jackpots);
+
+  if (Object.values(contributions).every((amount) => amount === 0)) {
+    saveJackpotPots(state.jackpots);
+    return false;
+  }
+
+  state.jackpots.mini += contributions.mini;
+  state.jackpots.major += contributions.major;
+  state.jackpots.grand += contributions.grand;
   saveJackpotPots(state.jackpots);
+  return true;
 }
 
 /**
@@ -3192,6 +3265,10 @@ function playSound(type) {
  */
 function setMessage(text, isBigWin = false) {
   const message = document.getElementById("statusMessage");
+  if (!message) {
+    return;
+  }
+
   message.textContent = text;
   message.classList.toggle("big-win", isBigWin);
 }
@@ -3206,6 +3283,10 @@ function showWinPopup(label, amount, variant = "default") {
   const popup = document.getElementById("winPopup");
   const popupLabel = document.getElementById("winPopupLabel");
   const popupAmount = document.getElementById("winPopupAmount");
+
+  if (!popup || !popupLabel || !popupAmount) {
+    return;
+  }
 
   window.clearTimeout(popupTimeout);
   popupLabel.textContent = label;
@@ -3227,7 +3308,7 @@ function showWinPopup(label, amount, variant = "default") {
   popupTimeout = window.setTimeout(() => {
     popup.classList.remove("show");
     popup.setAttribute("aria-hidden", "true");
-  }, 2300);
+  }, FEEDBACK_CONFIG.winPopupDurationMs);
 }
 
 /**
@@ -3237,6 +3318,10 @@ function hideWinPopup() {
   const popup = document.getElementById("winPopup");
 
   window.clearTimeout(popupTimeout);
+  if (!popup) {
+    return;
+  }
+
   popup.classList.remove("show", "jackpot", "big-win");
   popup.setAttribute("aria-hidden", "true");
 }
@@ -3247,6 +3332,10 @@ function hideWinPopup() {
  */
 function clearCelebration(overlayId) {
   const celebration = document.getElementById(overlayId);
+  if (!celebration) {
+    return;
+  }
+
   celebration.classList.remove("show");
   celebration.setAttribute("aria-hidden", "true");
   celebration.innerHTML = "";
@@ -3267,6 +3356,10 @@ function clearBigWinCelebration() {
  * @param {number} coinCount
  */
 function populateCoinBurst(celebration, coinCount) {
+  if (!celebration) {
+    return;
+  }
+
   for (let index = 0; index < coinCount; index += 1) {
     const coin = document.createElement("span");
     coin.className = "coin-burst";
@@ -3289,11 +3382,15 @@ function triggerBigWinFeedback(amount) {
   clearBigWinCelebration();
   setMessage(UI_TEXT.messages.bigWin, true);
   showWinPopup(UI_TEXT.messages.bigWin, amount, "big-win");
-  playSound(AUDIO_CUES.bigWin);
-  populateCoinBurst(celebration, 22);
+  playSound(SOUNDS.bigWin);
+  populateCoinBurst(celebration, FEEDBACK_CONFIG.bigWinCelebrationCoins);
+  if (!celebration) {
+    return;
+  }
+
   celebration.classList.add("show");
   celebration.setAttribute("aria-hidden", "false");
-  bigWinTimeout = window.setTimeout(clearBigWinCelebration, 2600);
+  bigWinTimeout = window.setTimeout(clearBigWinCelebration, FEEDBACK_CONFIG.bigWinCelebrationDurationMs);
 }
 
 /**
@@ -3303,6 +3400,10 @@ function triggerBigWinFeedback(amount) {
  */
 function triggerJackpotFeedback(tier, amount) {
   const celebration = document.getElementById("jackpotCelebration");
+
+  if (!celebration) {
+    return;
+  }
 
   clearBigWinCelebration();
   celebration.innerHTML = `
@@ -3316,8 +3417,8 @@ function triggerJackpotFeedback(tier, amount) {
   celebration.setAttribute("aria-hidden", "false");
   setMessage(`${tier.toUpperCase()} ${UI_TEXT.messages.jackpotPaidSuffix}`, true);
   showWinPopup(`${tier.toUpperCase()} Jackpot`, amount, "jackpot");
-  playSound(AUDIO_CUES.jackpot);
-  bigWinTimeout = window.setTimeout(clearBigWinCelebration, 3400);
+  playSound(SOUNDS.jackpot);
+  bigWinTimeout = window.setTimeout(clearBigWinCelebration, FEEDBACK_CONFIG.jackpotCelebrationDurationMs);
 }
 
 /**
@@ -3390,18 +3491,240 @@ function shuffleArray(values) {
 }
 
 /**
+ * Registers an event listener and remembers how to remove it during teardown.
+ * @param {EventTarget | null | undefined} target
+ * @param {string} type
+ * @param {EventListenerOrEventListenerObject} handler
+ * @param {AddEventListenerOptions | boolean} [options]
+ * @returns {() => void}
+ */
+function addManagedEventListener(target, type, handler, options) {
+  if (!target || typeof target.addEventListener !== "function" || typeof target.removeEventListener !== "function") {
+    return () => {};
+  }
+
+  target.addEventListener(type, handler, options);
+
+  let isRemoved = false;
+  const cleanup = () => {
+    if (isRemoved) {
+      return;
+    }
+
+    target.removeEventListener(type, handler, options);
+    isRemoved = true;
+  };
+
+  managedEventCleanups.push(cleanup);
+  return cleanup;
+}
+
+/**
+ * Removes every managed listener currently registered by the game.
+ * @returns {void}
+ */
+function removeManagedEventListeners() {
+  while (managedEventCleanups.length > 0) {
+    const cleanup = managedEventCleanups.pop();
+    cleanup();
+  }
+}
+
+/**
+ * Checks whether an element can receive focus in a modal trap.
+ * @param {Element | null} element
+ * @returns {element is HTMLElement}
+ */
+function isFocusableElement(element) {
+  return Boolean(
+    element
+    && typeof element.focus === "function"
+    && !element.hasAttribute("disabled")
+    && element.getAttribute("aria-hidden") !== "true"
+  );
+}
+
+/**
+ * Returns visible focus targets inside a modal container.
+ * @param {HTMLElement} container
+ * @param {typeof FOCUS_TRAP_CONFIG} [config]
+ * @returns {HTMLElement[]}
+ */
+function getFocusableElements(container, config = FOCUS_TRAP_CONFIG) {
+  if (!container || typeof container.querySelectorAll !== "function") {
+    return [];
+  }
+
+  return Array.from(container.querySelectorAll(config.focusableSelector)).filter(isFocusableElement);
+}
+
+/**
+ * Applies or removes background interaction blocking while a modal is open.
+ * @param {boolean} isBlocked
+ * @param {typeof FOCUS_TRAP_CONFIG} [config]
+ * @returns {void}
+ */
+function setBackgroundInteractionBlocked(isBlocked, config = FOCUS_TRAP_CONFIG) {
+  if (typeof document === "undefined") {
+    return;
+  }
+
+  const blockedElement = document.querySelector(config.blockedElementSelector);
+  if (!blockedElement) {
+    return;
+  }
+
+  if (isBlocked) {
+    blockedElement.setAttribute("aria-hidden", "true");
+    blockedElement.inert = true;
+    return;
+  }
+
+  blockedElement.removeAttribute("aria-hidden");
+  blockedElement.inert = false;
+}
+
+/**
+ * Moves focus back inside the active modal if the browser tries to escape it.
+ * @returns {void}
+ */
+function focusFirstModalElement() {
+  if (!activeFocusTrap) {
+    return;
+  }
+
+  const focusableElements = getFocusableElements(activeFocusTrap.panel);
+  const nextElement = focusableElements[0] || activeFocusTrap.panel;
+
+  if (isFocusableElement(nextElement)) {
+    nextElement.focus();
+  }
+}
+
+/**
+ * Keeps Tab and Shift+Tab navigation inside the active modal overlay.
+ * @param {KeyboardEvent} event
+ * @returns {void}
+ */
+function handleFocusTrapKeydown(event) {
+  if (!activeFocusTrap || event.key !== "Tab") {
+    return;
+  }
+
+  const focusableElements = getFocusableElements(activeFocusTrap.panel);
+
+  if (focusableElements.length === 0) {
+    event.preventDefault();
+    activeFocusTrap.panel.focus();
+    return;
+  }
+
+  const firstElement = focusableElements[0];
+  const lastElement = focusableElements[focusableElements.length - 1];
+  const activeElement = document.activeElement;
+  const isOutsideTrap = !activeFocusTrap.panel.contains(activeElement);
+
+  if (event.shiftKey && (activeElement === firstElement || isOutsideTrap)) {
+    event.preventDefault();
+    lastElement.focus();
+    return;
+  }
+
+  if (!event.shiftKey && (activeElement === lastElement || isOutsideTrap)) {
+    event.preventDefault();
+    firstElement.focus();
+  }
+}
+
+/**
+ * Redirects focus back into the active modal if background content is targeted.
+ * @param {FocusEvent} event
+ * @returns {void}
+ */
+function handleFocusTrapFocusIn(event) {
+  if (!activeFocusTrap || activeFocusTrap.panel.contains(event.target)) {
+    return;
+  }
+
+  focusFirstModalElement();
+}
+
+/**
+ * Starts focus trapping for an overlay and blocks background controls.
+ * @param {HTMLElement} overlay
+ * @param {HTMLElement} panel
+ * @returns {void}
+ */
+function activateFocusTrap(overlay, panel) {
+  if (!overlay || !panel || activeFocusTrap?.overlay === overlay) {
+    return;
+  }
+
+  deactivateFocusTrap();
+
+  const previousFocus = isFocusableElement(document.activeElement) ? document.activeElement : null;
+  panel.setAttribute("tabindex", "-1");
+  setBackgroundInteractionBlocked(true);
+
+  const cleanupKeydown = addManagedEventListener(overlay, "keydown", handleFocusTrapKeydown);
+  const cleanupFocusIn = addManagedEventListener(document, "focusin", handleFocusTrapFocusIn);
+
+  activeFocusTrap = {
+    overlay,
+    panel,
+    previousFocus,
+    cleanup: () => {
+      cleanupKeydown();
+      cleanupFocusIn();
+    }
+  };
+
+  window.requestAnimationFrame(focusFirstModalElement);
+}
+
+/**
+ * Stops any active modal focus trap and restores background interaction.
+ * @returns {void}
+ */
+function deactivateFocusTrap() {
+  if (!activeFocusTrap) {
+    setBackgroundInteractionBlocked(false);
+    return;
+  }
+
+  const focusTrap = activeFocusTrap;
+  activeFocusTrap = null;
+  focusTrap.cleanup();
+  setBackgroundInteractionBlocked(false);
+
+  if (isFocusableElement(focusTrap.previousFocus)) {
+    focusTrap.previousFocus.focus();
+  }
+}
+
+/**
  * Opens or closes the settings overlay.
  * @param {boolean} isOpen
  */
 function setSettingsOpen(isOpen) {
   const overlay = document.getElementById("settingsOverlay");
+  const panel = overlay ? overlay.querySelector("[role='dialog']") : null;
 
-  if (!overlay) {
+  if (!overlay || !panel) {
     return;
   }
 
   overlay.classList.toggle("show", isOpen);
   overlay.setAttribute("aria-hidden", String(!isOpen));
+
+  if (isOpen) {
+    activateFocusTrap(overlay, panel);
+    return;
+  }
+
+  if (activeFocusTrap?.overlay === overlay) {
+    deactivateFocusTrap();
+  }
 }
 
 /**
@@ -3423,6 +3746,12 @@ function setBonusOpen(isOpen) {
   if (isOpen) {
     syncBonusModalLayout(bonusElements);
     crates.scrollTop = 0;
+    activateFocusTrap(overlay, bonusElements.panel);
+    return;
+  }
+
+  if (activeFocusTrap?.overlay === overlay) {
+    deactivateFocusTrap();
   }
 }
 
@@ -3515,6 +3844,11 @@ function resolveBonusPick(crateIndex) {
     return;
   }
 
+  if (!Object.values(BONUS_REWARD_TYPES).includes(prize.type)) {
+    console.warn(`${UI_TEXT.warnings.unknownBonusPrizeType}: ${prize.type}`, prize);
+    return;
+  }
+
   bonusState.revealedCrates[crateIndex] = true;
   button.disabled = true;
   button.className = getBonusCrateStateClasses({ isSelected: true, isRevealed: true, isDisabled: true });
@@ -3531,6 +3865,8 @@ function resolveBonusPick(crateIndex) {
     bonusState.picksMade += 1;
   } else if (prize.type === BONUS_REWARD_TYPES.collect) {
     // Collect intentionally ends the round without changing totals.
+  } else {
+    return;
   }
 
   const shouldFinish = prize.type === BONUS_REWARD_TYPES.collect || bonusState.picksMade >= BONUS_CONFIG.maxPicks;
@@ -3571,12 +3907,12 @@ function settleSpin(board, boardFeatures, usedFreeSpin, options = {}) {
     jackpotAmount = awardJackpot(jackpotTier);
   }
 
-  if (result.totalWin >= state.bet * 20) {
+  if (result.totalWin >= state.bet * FEEDBACK_CONFIG.bigWinThresholdBetMultiplier) {
     triggerBigWinFeedback(result.totalWin);
   } else if (result.totalWin > 0) {
     setMessage(getStatusMessage(result));
     showWinPopup(getWinLabel(result), result.totalWin);
-    playSound(AUDIO_CUES.win);
+    playSound(SOUNDS.win);
   } else if (result.freeSpinsAwarded > 0) {
     setMessage(getStatusMessage(result));
   } else {
@@ -3599,6 +3935,31 @@ function settleSpin(board, boardFeatures, usedFreeSpin, options = {}) {
 }
 
 /**
+ * Clears interval and timeout handles for an active spin object.
+ * @param {{intervals?: number[], timeouts?: number[], reels?: Element[]} | null} spinRecord
+ * @returns {void}
+ */
+function clearActiveSpinTimers(spinRecord) {
+  if (!spinRecord) {
+    return;
+  }
+
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  if (Array.isArray(spinRecord.intervals)) {
+    spinRecord.intervals.forEach((intervalId) => window.clearInterval(intervalId));
+    spinRecord.intervals.length = 0;
+  }
+
+  if (Array.isArray(spinRecord.timeouts)) {
+    spinRecord.timeouts.forEach((timeoutId) => window.clearTimeout(timeoutId));
+    spinRecord.timeouts.length = 0;
+  }
+}
+
+/**
  * Finalizes an active spin immediately.
  */
 function finishActiveSpin() {
@@ -3608,8 +3969,7 @@ function finishActiveSpin() {
 
   const spinToFinish = activeSpin;
 
-  spinToFinish.intervals.forEach((intervalId) => window.clearInterval(intervalId));
-  spinToFinish.timeouts.forEach((timeoutId) => window.clearTimeout(timeoutId));
+  clearActiveSpinTimers(spinToFinish);
   clearNearMissVisuals(spinToFinish.reels);
 
   spinToFinish.reels.forEach((reelElement, reelIndex) => {
@@ -3679,7 +4039,7 @@ function stopReelWithNearMiss(reelElement, reelIndex, reels, nextBoard, nextBoar
       }
 
       renderNearMissFinalReel(reelElement, reelIndex, nextBoard, nextBoardFeatures, nearMissPlan);
-      playSound(AUDIO_CUES.reelStop);
+      playSound(SOUNDS.reelStop);
       completeSpinAfterReelStop(reelIndex, reels, nextBoard, nextBoardFeatures, usedFreeSpin);
     }, nearMissPlan.timing.slideMs);
 
@@ -3719,7 +4079,7 @@ function spin() {
   }
 
   updateDisplays();
-  playSound(AUDIO_CUES.spin);
+  playSound(SOUNDS.spin);
 
   const nextBoard = createBoard();
   const nextBoardFeatures = createBoardFeatureGrid(nextBoard);
@@ -3772,7 +4132,7 @@ function spin() {
       }
 
       renderSettledReel(reelElement, reelIndex, nextBoard, nextBoardFeatures);
-      playSound(AUDIO_CUES.reelStop);
+      playSound(SOUNDS.reelStop);
       completeSpinAfterReelStop(reelIndex, reels, nextBoard, nextBoardFeatures, usedFreeSpin);
     }, stopDelay);
 
@@ -3914,7 +4274,7 @@ function handleDocumentKeydown(event) {
     return;
   }
 
-  triggerBigWinFeedback(state.bet * 20);
+  triggerBigWinFeedback(state.bet * FEEDBACK_CONFIG.bigWinThresholdBetMultiplier);
 }
 
 /**
@@ -3923,11 +4283,7 @@ function handleDocumentKeydown(event) {
  * @returns {() => void}
  */
 function wireKeyboardShortcuts(eventTarget = document) {
-  eventTarget.addEventListener("keydown", handleDocumentKeydown);
-
-  return () => {
-    eventTarget.removeEventListener("keydown", handleDocumentKeydown);
-  };
+  return addManagedEventListener(eventTarget, "keydown", handleDocumentKeydown);
 }
 
 /**
@@ -3950,7 +4306,7 @@ function mountKeyboardShortcuts() {
   keyboardShortcutCleanup = wireKeyboardShortcuts();
 
   if (!pagehideCleanupRegistered) {
-    window.addEventListener("pagehide", cleanupKeyboardShortcuts);
+    addManagedEventListener(window, "pagehide", cleanupKeyboardShortcuts);
     pagehideCleanupRegistered = true;
   }
 }
@@ -3969,60 +4325,97 @@ function changeBet(direction) {
 }
 
 /**
+ * Tears down timers, listeners, and transient overlay state without resetting saved gameplay state.
+ * @returns {void}
+ */
+function destroyGame() {
+  clearActiveSpinTimers(activeSpin);
+  activeSpin = null;
+  state.isSpinning = false;
+
+  if (typeof window !== "undefined") {
+    window.clearTimeout(popupTimeout);
+    window.clearTimeout(bigWinTimeout);
+    window.clearTimeout(rewardFeedbackTimeout);
+  }
+
+  popupTimeout = 0;
+  bigWinTimeout = 0;
+  rewardFeedbackTimeout = 0;
+
+  cleanupKeyboardShortcuts();
+  deactivateFocusTrap();
+  removeManagedEventListeners();
+  setBackgroundInteractionBlocked(false);
+
+  isGameInitialized = false;
+  pagehideCleanupRegistered = false;
+}
+
+/**
  * Wires UI events once the document is ready.
  * @returns {void}
  */
 function initializeGame() {
   try {
+    if (isGameInitialized) {
+      return;
+    }
+
+    isGameInitialized = true;
     state.spinSpeed = loadSpinSpeedPreference();
     state.audioSettings = loadAudioSettings();
     state.jackpots = loadJackpotPots();
     const dailyReward = grantDailyLoginReward();
     renderBoard(state.board, state.boardFeatures);
     updateDisplays();
-    document.getElementById("spinButton").addEventListener("click", handleSpinButtonClick);
-    document.getElementById("decreaseBetButton").addEventListener("click", () => changeBet(-1));
-    document.getElementById("increaseBetButton").addEventListener("click", () => changeBet(1));
-    document.getElementById("settingsButton").addEventListener("click", () => {
+    addManagedEventListener(document.getElementById("spinButton"), "click", handleSpinButtonClick);
+    addManagedEventListener(document.getElementById("decreaseBetButton"), "click", () => changeBet(-1));
+    addManagedEventListener(document.getElementById("increaseBetButton"), "click", () => changeBet(1));
+    addManagedEventListener(document.getElementById("settingsButton"), "click", () => {
       const overlay = document.getElementById("settingsOverlay");
+      if (!overlay) {
+        return;
+      }
+
       setSettingsOpen(overlay.getAttribute("aria-hidden") === "true");
     });
-    document.getElementById("settingsOverlay").addEventListener("click", (event) => {
-      if (event.target.id === "settingsOverlay") {
+    addManagedEventListener(document.getElementById("settingsOverlay"), "click", (event) => {
+      if (event?.target?.id === "settingsOverlay") {
         setSettingsOpen(false);
       }
     });
 
     const speedOptions = document.querySelector(".settings-speed-options");
     if (speedOptions) {
-      speedOptions.addEventListener("click", handleSpinSpeedButtonClick);
+      addManagedEventListener(speedOptions, "click", handleSpinSpeedButtonClick);
     }
 
     const volumeSlider = document.getElementById(AUDIO_SETTINGS_CONFIG.sliderId);
     const volumeMuteButton = document.getElementById(AUDIO_SETTINGS_CONFIG.muteButtonId);
 
     if (volumeSlider) {
-      volumeSlider.addEventListener("input", handleVolumeSliderInput);
+      addManagedEventListener(volumeSlider, "input", handleVolumeSliderInput);
     }
 
     if (volumeMuteButton) {
-      volumeMuteButton.addEventListener("click", handleVolumeMuteButtonClick);
+      addManagedEventListener(volumeMuteButton, "click", handleVolumeMuteButtonClick);
     }
 
     const bonusCrates = document.getElementById(BONUS_UI_CONFIG.elementIds.crates);
     if (bonusCrates) {
-      bonusCrates.addEventListener(BONUS_UI_CONFIG.events.click, (event) => {
-        const button = event.target.closest(BONUS_UI_CONFIG.selectors.crateButton);
+      addManagedEventListener(bonusCrates, BONUS_UI_CONFIG.events.click, (event) => {
+        const button = event?.target?.closest?.(BONUS_UI_CONFIG.selectors.crateButton) || null;
         if (!button) {
           return;
         }
 
         resolveBonusPick(Number(button.dataset.crateIndex));
       });
-      bonusCrates.addEventListener(BONUS_UI_CONFIG.events.pointerOver, (event) => handleBonusCratePointerState(event, true));
-      bonusCrates.addEventListener(BONUS_UI_CONFIG.events.pointerOut, (event) => handleBonusCratePointerState(event, false));
-      bonusCrates.addEventListener(BONUS_UI_CONFIG.events.focusIn, (event) => handleBonusCrateFocusState(event, true));
-      bonusCrates.addEventListener(BONUS_UI_CONFIG.events.focusOut, (event) => handleBonusCrateFocusState(event, false));
+      addManagedEventListener(bonusCrates, BONUS_UI_CONFIG.events.pointerOver, (event) => handleBonusCratePointerState(event, true));
+      addManagedEventListener(bonusCrates, BONUS_UI_CONFIG.events.pointerOut, (event) => handleBonusCratePointerState(event, false));
+      addManagedEventListener(bonusCrates, BONUS_UI_CONFIG.events.focusIn, (event) => handleBonusCrateFocusState(event, true));
+      addManagedEventListener(bonusCrates, BONUS_UI_CONFIG.events.focusOut, (event) => handleBonusCrateFocusState(event, false));
     }
     mountKeyboardShortcuts();
 
@@ -4030,14 +4423,15 @@ function initializeGame() {
       showRewardFeedback(dailyReward);
     }
   } catch (error) {
+    isGameInitialized = false;
     console.error(UI_TEXT.warnings.initializeFailed, error);
     setMessage("Game setup failed. Refresh to retry.");
   }
 }
 
 if (typeof document !== "undefined") {
-  document.addEventListener("DOMContentLoaded", initializeGame);
-  window.addEventListener("resize", () => {
+  addManagedEventListener(document, "DOMContentLoaded", initializeGame);
+  addManagedEventListener(window, "resize", () => {
     syncBonusModalLayout();
   });
 }
@@ -4049,8 +4443,11 @@ if (typeof module !== "undefined") {
     BONUS_CONFIG,
     BONUS_MODAL_LAYOUT_CONFIG,
     BONUS_UI_CONFIG,
+    FEEDBACK_CONFIG,
+    FOCUS_TRAP_CONFIG,
     FREE_SPIN_CONFIG,
     GAME_LIMITS,
+    JACKPOTS,
     JACKPOT_CONFIG,
     KEYBOARD_CONFIG,
     RETENTION_CONFIG,
@@ -4064,11 +4461,13 @@ if (typeof module !== "undefined") {
     SYMBOL_IDS,
     BONUS_REWARD_TYPES,
     AUDIO_CUES,
+    SOUNDS,
     UI_TEXT,
     PAYLINES,
     PAYLINE_RENDER_CONFIG,
     SYMBOL_ART_CONFIG,
     SYMBOLS,
+    state,
     applyRewardToState,
     applySpinSpeed,
     clampBet,
@@ -4095,6 +4494,7 @@ if (typeof module !== "undefined") {
     createSymbolArtContent,
     createWildSymbolArt,
     determineJackpotTier,
+    destroyGame,
     escapeHtml,
     evaluateBonuses,
     evaluateBoard,
@@ -4112,20 +4512,29 @@ if (typeof module !== "undefined") {
     getFreeSpinAward,
     getLeftToRightMatch,
     getLineMultiplier,
+    getJackpotContribution,
+    getFocusableElements,
     getVolumeButtonState,
     hasContiguousMatchedPositions,
     isNearMissEligible,
     isValidBonusRoundState,
     isKeyboardShortcutBlockedTarget,
     isSpinShortcutEvent,
+    isFocusableElement,
     isValidSpinSpeedMode,
     isValidWinPosition,
     isWildHorizontalLine,
     loadSpinSpeedPreference,
+    loadAudioSettings,
+    loadJackpotPots,
+    readStorageValue,
     resolveDailyLoginReward,
     resolveBadgeArtText,
     sanitizeAudioSettings,
+    sanitizeJackpotPots,
     saveSpinSpeedPreference,
+    saveAudioSettings,
+    saveJackpotPots,
     serializeHtmlAttributes,
     selectNearMissPlan,
     setAudioVolumeState,
@@ -4134,6 +4543,8 @@ if (typeof module !== "undefined") {
     shouldHandleSpinShortcut,
     shouldGrantDailyReward,
     toggleAudioMuteState,
+    contributeToJackpots,
+    finishActiveSpin,
     validateNearMissConfig,
     volumeToSliderValue
   };

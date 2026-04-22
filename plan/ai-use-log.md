@@ -1857,3 +1857,353 @@ After your changes:
 
 - [x] None
 - [ ] Yes
+---
+# Prompt 21
+## Prompt Used:
+## 🧠 Agent Task: Code Quality + Full Test Coverage Hardening
+
+You are a senior-level, extremely careful engineer agent working inside an existing vanilla JavaScript slot machine project.
+
+This is a HIGH-RISK refactor. Your job is to improve code quality and add COMPLETE test coverage WITHOUT breaking anything.
+
+---
+
+## 🚨 HARD RULES (NON-NEGOTIABLE)
+
+- Preserve ALL existing functionality
+- DO NOT delete or weaken ANY existing tests
+- ONLY add tests (never remove)
+- All tests go in: test.spec.js
+- Add:
+  - Unit tests
+  - Integration tests
+  - Regression tests
+  - Smoke tests
+  - Playwright E2E tests
+- Test EVERY feature you touch
+- Test FAILURE cases and EDGE cases
+- Test what happens when things go WRONG
+- Use REAL game logic (no fake state hacks)
+- No magic numbers → use constants/config
+- Add JSDoc
+- Code must be lint-friendly
+- Add defensive error handling
+- Keep changes SMALL and SAFE (no rewrites)
+
+---
+
+## 🧩 TASKS
+
+### 1. Global state (DO NOT REWRITE)
+- state is a mutable global
+- DO NOT refactor architecture
+- Reduce unsafe mutation incrementally
+- Add helper functions if safe
+
+---
+
+### 2. Fix SYMBOL_IDS
+
+Add missing:
+- badge
+- cowboy
+- cactus
+- boots
+
+Requirements:
+- Centralize all symbols
+- Replace string literals where safe
+- Do NOT break anything
+
+---
+
+### 3. Remove Magic Numbers
+
+Examples:
+- state.bet * 20
+- setTimeout(..., 2600)
+
+Requirements:
+- Extract into constants/config
+- Keep exact behavior
+
+---
+
+## 4. Fix Spin Speed (CRITICAL)
+
+❌ REMOVE:
+state.fastPlayEnabled = true
+
+✅ USE:
+applySpinSpeed("skip")
+
+Tests MUST:
+- use real logic
+- verify state + UI + persistence
+
+---
+
+### 5. Fix resolveBonusPick()
+
+Requirements:
+- handle "collect" explicitly
+- NO fallthrough
+- unknown types MUST:
+  - NOT crash
+  - log warning
+  - act as safe no-op
+
+---
+
+### 6. Modernize Defensive Code
+
+Replace:
+event && event.target && ...
+
+With:
+event?.target?.closest?.(...)
+
+Do NOT change behavior
+
+---
+
+### 7. Centralize Strings
+
+Move to constants:
+- sounds
+- jackpots
+- UI messages
+
+Example:
+SOUNDS.bigWin
+JACKPOTS.major
+
+---
+
+### 8. Refactor evaluateBoard()
+
+Split into:
+- evaluatePaylines
+- evaluateScatters
+- multipliers
+- bonus triggers
+- result builder
+
+MUST:
+- NOT change outputs
+- Add regression tests
+
+---
+
+### 9. Light Modularization (OPTIONAL)
+
+Only if safe:
+- settings
+- jackpots
+- bonus logic
+- audio
+
+NO big rewrites
+
+---
+
+### 10. Add destroyGame()
+
+Must:
+- remove listeners
+- clear timers
+- be safe if called multiple times
+
+---
+
+### 11. Focus Trap (OVERLAYS)
+
+Fix:
+- Bonus overlay
+- Settings overlay
+
+Must:
+- trap tab focus
+- prevent background interaction
+
+---
+
+## 🧪 TESTING (STRICT)
+
+## RULE:
+You are NOT done until:
+- everything is tested
+- failure cases are tested
+- nothing silently breaks
+
+---
+
+## REQUIRED TESTS
+
+### Audio / Volume
+Test:
+- clampVolume
+- setAudioVolumeState
+- toggleAudioMuteState
+- sanitizeAudioSettings
+
+Include:
+- invalid values
+- out-of-range
+- corrupted state
+
+---
+
+### Jackpot Math
+Test:
+contributeToJackpots(10)
+
+Verify:
+- correct distribution
+- edge cases
+- no corruption
+
+---
+
+### localStorage Failures
+Simulate:
+- read fail
+- write fail
+- corrupted data
+
+Verify:
+- no crash
+- fallback works
+
+---
+
+### finishActiveSpin()
+Test:
+- intervals cleared
+- timeouts cleared
+- safe repeat calls
+
+---
+
+### Multiplier Cap
+Test:
+- overflow scenario
+- payout capped correctly
+
+---
+
+## 🧪 FEATURE TESTS
+
+Test ALL:
+
+SYMBOL_IDS:
+- new symbols exist
+- no broken refs
+
+Magic numbers:
+- behavior unchanged
+
+Spin speed:
+- applySpinSpeed works
+- invalid input safe
+
+Bonus pick:
+- collect works
+- unknown types safe
+
+Defensive code:
+- null/undefined safe
+
+evaluateBoard:
+- SAME outputs as before
+- regression locked
+
+destroyGame:
+- cleanup works
+- repeat safe
+
+Focus trap:
+- tab locked
+- no background focus
+
+---
+
+## 🧪 E2E TESTS
+
+### Smoke:
+- app loads
+- spin works
+
+### Regression:
+- payouts unchanged
+- bonus works
+- jackpots correct
+
+### Failure:
+Test:
+- broken storage
+- invalid inputs
+- unknown prize types
+- missing DOM
+- repeated cleanup
+
+---
+
+## ⚙️ RULES
+
+- NO feature creep
+- NO silent behavior changes
+- NO deleting tests
+- Prefer small functions
+- Prefer constants over literals
+- Use guard clauses
+
+---
+
+## 📦 DELIVERABLES
+
+1. Updated code
+2. Updated test.spec.js
+3. Summary of changes
+4. Summary of tests added
+5. Notes on risk avoided
+
+---
+
+## ✅ FINAL CHECKLIST
+
+- No tests deleted
+- Everything tested
+- Failure cases covered
+- No magic numbers
+- No regressions
+- Uses real logic
+- No crashes
+
+---
+
+## 🧠 FINAL NOTE
+
+Act like this code handles real money.
+
+If it breaks, it’s your fault.
+
+Test EVERYTHING.
+
+## Result
+### List what it got correct:
+- completed teststing all functionalities
+
+### List what it didn't get correct:
+- 
+
+
+### List any unexpected behavior or errors it introduced:
+
+- None
+
+### Manual Edits (Only if LLM failed after attempts)
+
+- [x] None
+- [ ] Yes
+---
