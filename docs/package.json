@@ -3,8 +3,8 @@
   "private": true,
   "type": "commonjs",
   "scripts": {
-    "lint": "eslint script.js tests/test.spec.js playwright.config.js",
-    "test": "playwright test"
+    "lint": "eslint -c tests/eslint.config.js script.js tests/test.spec.js tests/playwright.config.js",
+    "test": "playwright test --config tests/playwright.config.js"
   },
   "devDependencies": {
     "@playwright/test": "^1.54.2",

@@ -1,6 +1,6 @@
 module.exports = [
   {
-    files: ["*.js"],
+    files: ["**/*.js"],
     languageOptions: {
       ecmaVersion: 2022,
       sourceType: "commonjs",
@@ -17,4 +17,4 @@ module.exports = [
       "no-unused-vars": ["error", { args: "none", caughtErrors: "all", caughtErrorsIgnorePattern: "^_" }]
     }
   }
-];
+]

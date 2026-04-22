@@ -474,3 +474,29 @@ If Yes:
 - Whether the fix introduced new issues or resolved the problem:
 
 ---
+# Prompt 7 Entry
+
+## Prompt Used
+make all the test related things into tests folder so it is cleaner
+
+# Result
+## List what it got correct:
+- tests are moved to the correct location
+
+## List what it didn't get correct:
+- 
+
+## List any unexpected behavior or errors it introduced or any functionality it may have removed:
+
+## Manual Edits (Only if LLM failed after attempts)
+
+- [x] None
+- [ ] Yes
+
+If Yes:
+
+- What was manually changed:
+- Why manual editing was necessary:
+- Whether the fix introduced new issues or resolved the problem:
+
+---
