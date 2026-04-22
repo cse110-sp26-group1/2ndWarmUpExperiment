@@ -57,7 +57,7 @@
 
 - [x] Highlight winning symbols/paylines <mark>can be improved</mark>
 - [x] Win messages (“Big Win”, “Nice Hit”, etc.) as popups (J key tester)
-- [ ] Spin animation polish
+- [x] Spin animation polish
 - [x] Sound effects (spin, win, jackpot) <mark>can be improved</mark>
 - [x] Button hover/press effects
 - [x] Fast spin / skip animation option
@@ -77,7 +77,6 @@
 ### Retention Features
 
 - [ ] Daily login rewards (if implemented)
-- [ ] Big win notification system
 - [ ] Bonus/free spin reward feedback
 
 ---
