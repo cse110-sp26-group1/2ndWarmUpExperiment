@@ -995,6 +995,7 @@ Requirements:
 - None
 ### List any unexpected behavior or errors it introduced:
 - Both icons look a little odd, it does not quite know where to place things but it looks better
+- Upon merging the icons do not appear in main
 
 ### Manual Edits (Only if LLM failed after attempts)
 - [x] None
