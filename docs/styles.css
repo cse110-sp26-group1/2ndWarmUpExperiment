@@ -674,6 +674,22 @@ h1 {
   box-shadow: 0 -8px 0 -1px #6e3d26;
 }
 
+.symbol-cowboy .symbol-art[data-art-mode="svg"] {
+  width: 82px;
+  height: 68px;
+  border: 0;
+  border-radius: 0;
+  background: none;
+}
+
+.symbol-cowboy .symbol-art[data-art-mode="svg"]::before {
+  content: none;
+}
+
+.symbol-cowboy .slot-icon-cowboy {
+  filter: drop-shadow(0 3px 2px rgba(18, 8, 6, 0.4));
+}
+
 .symbol-wanted .symbol-art {
   width: 58px;
   height: 68px;
@@ -713,6 +729,20 @@ h1 {
   border-right: 13px solid #3fa44a;
   border-left: 13px solid #3fa44a;
   border-radius: 0 0 16px 16px;
+}
+
+.symbol-cactus .symbol-art[data-art-mode="svg"] {
+  width: 78px;
+  height: 72px;
+}
+
+.symbol-cactus .symbol-art[data-art-mode="svg"]::before,
+.symbol-cactus .symbol-art[data-art-mode="svg"]::after {
+  content: none;
+}
+
+.symbol-cactus .slot-icon-cactus {
+  filter: drop-shadow(0 3px 2px rgba(18, 8, 6, 0.38));
 }
 
 .symbol-dynamite .symbol-art {

@@ -23,19 +23,23 @@ const TEST_CONFIG = {
   iconSymbolIds: {
     badge: "badge",
     boots: "boots",
+    cactus: "cactus",
+    cowboy: "cowboy",
     dynamite: game.SYMBOL_IDS ? game.SYMBOL_IDS.dynamite : "dynamite",
     wild: game.SYMBOL_IDS ? game.SYMBOL_IDS.wild : "wild"
   },
   iconSelectors: {
     badge: "[data-symbol='badge'] .symbol-art",
     boots: "[data-symbol='boots'] [data-symbol-icon='boots']",
+    cactus: "[data-symbol='cactus'] [data-symbol-icon='cactus']",
+    cowboy: "[data-symbol='cowboy'] [data-symbol-icon='cowboy']",
     dynamite: "[data-symbol='dynamite'] [data-symbol-icon='dynamite']",
     wild: "[data-symbol='wild'] [data-symbol-icon='wild']"
   },
   bonusSpinBoard: [
     ["dynamite", "badge", "dynamite", "k", "a"],
     ["cowboy", "dynamite", "wild", "q", "10"],
-    ["boots", "j", "a", "k", "q"]
+    ["boots", "cactus", "a", "k", "q"]
   ],
   freeSpinBoard: [
     ["scatter", "cowboy", "badge", "k", "q"],
@@ -59,7 +63,7 @@ const TEST_CONFIG = {
   ],
   standardWinBoard: [
     ["badge", "badge", "badge", "q", "10"],
-    ["cowboy", "boots", "a", "j", "q"],
+    ["cowboy", "boots", "cactus", "j", "q"],
     ["a", "q", "j", "10", "k"]
   ],
   twoMatchBoard: [
@@ -417,6 +421,8 @@ test.describe("unit", () => {
   test("renders corrected SVG icon markup for western symbol art", async () => {
     const badgeSymbol = game.getSymbolDefinition(TEST_CONFIG.iconSymbolIds.badge);
     const bootsArt = game.createSymbolArtContent(game.getSymbolDefinition(TEST_CONFIG.iconSymbolIds.boots));
+    const cactusArt = game.createSymbolArtContent(game.getSymbolDefinition(TEST_CONFIG.iconSymbolIds.cactus));
+    const cowboyArt = game.createSymbolArtContent(game.getSymbolDefinition(TEST_CONFIG.iconSymbolIds.cowboy));
     const dynamiteArt = game.createSymbolArtContent(game.getSymbolDefinition(TEST_CONFIG.iconSymbolIds.dynamite));
     const wildArt = game.createSymbolArtContent(game.getSymbolDefinition(TEST_CONFIG.iconSymbolIds.wild));
 
@@ -430,6 +436,16 @@ test.describe("unit", () => {
     expect(bootsArt.mode).toBe("svg");
     expect(bootsArt.markup).toContain('data-symbol-icon="boots"');
     expect(bootsArt.markup).toContain("slot-icon-boots");
+
+    expect(cactusArt.mode).toBe("svg");
+    expect(cactusArt.markup).toContain('data-symbol-icon="cactus"');
+    expect(cactusArt.markup).toContain(`data-icon-detail="${game.CACTUS_ART_CONFIG.bodyDetailValue}"`);
+    expect(cactusArt.markup.match(new RegExp(`data-icon-detail="${game.CACTUS_ART_CONFIG.armDetailValue}"`, "g"))).toHaveLength(2);
+
+    expect(cowboyArt.mode).toBe("svg");
+    expect(cowboyArt.markup).toContain('data-symbol-icon="cowboy"');
+    expect(cowboyArt.markup).toContain(`data-icon-detail="${game.COWBOY_ART_CONFIG.crownDetailValue}"`);
+    expect(cowboyArt.markup).toContain(`data-icon-detail="${game.COWBOY_ART_CONFIG.faceDetailValue}"`);
 
     expect(dynamiteArt.mode).toBe("svg");
     expect(dynamiteArt.markup).toContain('data-symbol-icon="dynamite"');
@@ -595,15 +611,20 @@ test.describe("smoke", () => {
     expect(consoleErrors).toEqual([]);
   });
 
-  test("updated boots, dynamite, and wild icons render as inline SVG without losing western styling hooks", async ({ page }) => {
+  test("updated western icons render as inline SVG without losing styling hooks", async ({ page }) => {
     await gotoGame(page);
     await page.evaluate(({ board }) => {
       renderBoard(board, createEmptyFeatureGrid());
     }, { board: TEST_CONFIG.bonusSpinBoard });
 
     await expect(page.locator(TEST_CONFIG.iconSelectors.boots)).toHaveCount(1);
+    await expect(page.locator(TEST_CONFIG.iconSelectors.cactus)).toHaveCount(1);
+    await expect(page.locator(TEST_CONFIG.iconSelectors.cowboy)).toHaveCount(1);
     await expect(page.locator(TEST_CONFIG.iconSelectors.dynamite)).toHaveCount(3);
     await expect(page.locator(TEST_CONFIG.iconSelectors.wild)).toHaveCount(1);
+    await expect(page.locator(`${TEST_CONFIG.iconSelectors.cactus} [data-icon-detail='cactus-body']`)).toHaveCount(1);
+    await expect(page.locator(`${TEST_CONFIG.iconSelectors.cactus} [data-icon-detail='cactus-arm']`)).toHaveCount(2);
+    await expect(page.locator(`${TEST_CONFIG.iconSelectors.cowboy} [data-icon-detail='hat-crown']`)).toHaveCount(1);
     await expect(page.locator(`${TEST_CONFIG.iconSelectors.dynamite} [data-icon-detail='spark']`)).toHaveCount(3);
     await expect(page.locator(`${TEST_CONFIG.iconSelectors.wild} circle`)).toHaveCount(0);
   });

@@ -347,6 +347,41 @@ const BADGE_ART_CONFIG = Object.freeze({
   text: "S"
 });
 
+const COWBOY_ART_CONFIG = Object.freeze({
+  symbolId: "cowboy",
+  crownDetailAttribute: "data-icon-detail",
+  crownDetailValue: "hat-crown",
+  faceDetailValue: "hat-face",
+  palette: {
+    hatBase: "#6e4228",
+    hatShadow: "#4f2d1b",
+    hatHighlight: "#b87f47",
+    band: "#d6a154",
+    face: "#c78a62",
+    faceShadow: "#a86d49",
+    shirt: "#325880",
+    shirtShadow: "#1c2f4c",
+    neckerchief: "#a33328",
+    outline: "#3d2115"
+  }
+});
+
+const CACTUS_ART_CONFIG = Object.freeze({
+  symbolId: "cactus",
+  bodyDetailAttribute: "data-icon-detail",
+  bodyDetailValue: "cactus-body",
+  armDetailValue: "cactus-arm",
+  palette: {
+    bodyLight: "#63c662",
+    bodyMid: "#3d9d47",
+    bodyDark: "#28703a",
+    outline: "#16492b",
+    spine: "#dfe7b0",
+    ground: "#8e5b2c",
+    groundShadow: "#5f3817"
+  }
+});
+
 /**
  * @typedef {Object} SymbolArtConfig
  * @property {string} viewBox
@@ -362,6 +397,16 @@ const BADGE_ART_CONFIG = Object.freeze({
 
 /** @type {Record<string, SymbolArtConfig>} */
 const SYMBOL_ART_CONFIG = {
+  cowboy: {
+    viewBox: "0 0 96 80",
+    className: "slot-icon slot-icon-cowboy",
+    title: "Cowboy hat"
+  },
+  cactus: {
+    viewBox: "0 0 96 80",
+    className: "slot-icon slot-icon-cactus",
+    title: "Cactus"
+  },
   boots: {
     viewBox: "0 0 96 80",
     className: "slot-icon slot-icon-boots",
@@ -490,6 +535,55 @@ function createWildSymbolArt(config) {
 }
 
 /**
+ * Builds the cowboy hat art in the same western SVG style as the other refreshed symbols.
+ * @param {SymbolArtConfig} config
+ * @returns {string}
+ */
+function createCowboySymbolArt(config) {
+  return createInlineSymbolSvg(config, `
+    <g transform="translate(4 4)">
+      <path d="M18 26 C20 13 32 7 46 7 C61 7 73 13 75 26 C72 34 61 40 46 40 C32 40 21 34 18 26 Z" fill="${COWBOY_ART_CONFIG.palette.hatBase}" stroke="${COWBOY_ART_CONFIG.palette.outline}" stroke-width="2.6" stroke-linejoin="round" data-icon-detail="${COWBOY_ART_CONFIG.crownDetailValue}" />
+      <path d="M26 24 C28 16 36 12 46 12 C57 12 65 16 67 24 C65 30 57 34 46 34 C36 34 28 30 26 24 Z" fill="${COWBOY_ART_CONFIG.palette.hatHighlight}" opacity="0.78" />
+      <path d="M20 28 C27 22 38 20 46 20 C56 20 66 23 74 28 C68 23 60 19 46 19 C34 19 25 22 20 28 Z" fill="${COWBOY_ART_CONFIG.palette.hatShadow}" opacity="0.92" />
+      <path d="M29 28 C34 26 40 25 46 25 C52 25 58 26 63 28 L61 32 C55 30 51 29 46 29 C41 29 37 30 31 32 Z" fill="${COWBOY_ART_CONFIG.palette.band}" stroke="${COWBOY_ART_CONFIG.palette.outline}" stroke-width="1.5" stroke-linejoin="round" />
+      <path d="M4 39 C11 31 22 29 34 30 C40 24 48 23 58 25 C66 27 72 31 81 34 C86 36 88 41 84 44 C76 49 67 50 57 48 C49 53 37 54 27 52 C18 50 10 47 6 44 C2 42 1 40 4 39 Z" fill="${COWBOY_ART_CONFIG.palette.hatBase}" stroke="${COWBOY_ART_CONFIG.palette.outline}" stroke-width="2.8" stroke-linejoin="round" />
+      <path d="M10 40 C19 35 29 35 39 38 C47 34 57 34 68 37 C74 39 79 39 84 38 C80 42 73 44 66 43 C57 41 49 40 40 43 C30 46 20 45 10 40 Z" fill="${COWBOY_ART_CONFIG.palette.hatShadow}" opacity="0.85" />
+      <path d="M40 39 C42 36 46 35 50 36 C53 37 55 39 56 43 C54 48 51 52 47 56 C45 58 42 58 40 56 C36 52 33 48 32 43 C33 40 36 38 40 39 Z" fill="${COWBOY_ART_CONFIG.palette.face}" stroke="${COWBOY_ART_CONFIG.palette.outline}" stroke-width="2" stroke-linejoin="round" data-icon-detail="${COWBOY_ART_CONFIG.faceDetailValue}" />
+      <path d="M37 44 C40 41 44 40 47 40 C50 40 53 41 55 43 C52 42 49 42 46 42 C43 42 40 42 37 44 Z" fill="${COWBOY_ART_CONFIG.palette.faceShadow}" opacity="0.72" />
+      <path d="M37 58 L45 48 L54 58 Z" fill="${COWBOY_ART_CONFIG.palette.neckerchief}" stroke="${COWBOY_ART_CONFIG.palette.outline}" stroke-width="1.8" stroke-linejoin="round" />
+      <path d="M30 70 C34 61 39 57 46 57 C53 57 58 61 62 70" fill="${COWBOY_ART_CONFIG.palette.shirt}" stroke="${COWBOY_ART_CONFIG.palette.outline}" stroke-width="2.2" stroke-linecap="round" />
+      <path d="M34 67 C38 61 42 59 46 59 C50 59 54 61 58 67" fill="none" stroke="${COWBOY_ART_CONFIG.palette.shirtShadow}" stroke-width="2.2" stroke-linecap="round" opacity="0.7" />
+    </g>
+  `, COWBOY_ART_CONFIG.symbolId);
+}
+
+/**
+ * Builds the cactus art with attached arms and shared body shading.
+ * @param {SymbolArtConfig} config
+ * @returns {string}
+ */
+function createCactusSymbolArt(config) {
+  return createInlineSymbolSvg(config, `
+    <g transform="translate(10 4)">
+      <path d="M28 73 C30 63 31 48 31 36 C31 31 35 27 40 27 C45 27 49 31 49 36 C49 48 50 63 52 73 Z" fill="${CACTUS_ART_CONFIG.palette.bodyMid}" stroke="${CACTUS_ART_CONFIG.palette.outline}" stroke-width="2.6" stroke-linejoin="round" data-icon-detail="${CACTUS_ART_CONFIG.bodyDetailValue}" />
+      <path d="M22 42 C17 42 13 38 13 33 L13 25 C13 20 17 16 22 16 C27 16 31 20 31 25 L31 55 C31 60 27 64 22 64 C17 64 13 60 13 55 L13 48" fill="${CACTUS_ART_CONFIG.palette.bodyMid}" stroke="${CACTUS_ART_CONFIG.palette.outline}" stroke-width="2.6" stroke-linejoin="round" data-icon-detail="${CACTUS_ART_CONFIG.armDetailValue}" />
+      <path d="M58 47 C63 47 67 43 67 38 L67 30 C67 25 63 21 58 21 C53 21 49 25 49 30 L49 60 C49 65 53 69 58 69 C63 69 67 65 67 60 L67 53" fill="${CACTUS_ART_CONFIG.palette.bodyMid}" stroke="${CACTUS_ART_CONFIG.palette.outline}" stroke-width="2.6" stroke-linejoin="round" data-icon-detail="${CACTUS_ART_CONFIG.armDetailValue}" />
+      <path d="M17 60 C21 59 25 57 28 54 L28 28 C28 24 30 20 34 18 C36 17 38 17 40 17 L40 73 L28 73 C27 64 23 61 17 60 Z" fill="${CACTUS_ART_CONFIG.palette.bodyLight}" opacity="0.78" />
+      <path d="M49 73 L40 73 L40 17 C43 17 45 18 48 20 C51 23 52 26 52 31 L52 58 C57 59 61 61 64 65 C61 64 57 65 54 67 C52 68 51 70 49 73 Z" fill="${CACTUS_ART_CONFIG.palette.bodyDark}" opacity="0.56" />
+      <path d="M19 23 C21 21 23 21 25 23" fill="none" stroke="${CACTUS_ART_CONFIG.palette.spine}" stroke-width="1.5" stroke-linecap="round" />
+      <path d="M19 34 C21 32 23 32 25 34" fill="none" stroke="${CACTUS_ART_CONFIG.palette.spine}" stroke-width="1.5" stroke-linecap="round" />
+      <path d="M38 22 C40 20 42 20 44 22" fill="none" stroke="${CACTUS_ART_CONFIG.palette.spine}" stroke-width="1.5" stroke-linecap="round" />
+      <path d="M38 35 C40 33 42 33 44 35" fill="none" stroke="${CACTUS_ART_CONFIG.palette.spine}" stroke-width="1.5" stroke-linecap="round" />
+      <path d="M38 48 C40 46 42 46 44 48" fill="none" stroke="${CACTUS_ART_CONFIG.palette.spine}" stroke-width="1.5" stroke-linecap="round" />
+      <path d="M57 28 C59 26 61 26 63 28" fill="none" stroke="${CACTUS_ART_CONFIG.palette.spine}" stroke-width="1.5" stroke-linecap="round" />
+      <path d="M57 39 C59 37 61 37 63 39" fill="none" stroke="${CACTUS_ART_CONFIG.palette.spine}" stroke-width="1.5" stroke-linecap="round" />
+      <path d="M24 76 C34 72 47 72 57 76" fill="none" stroke="${CACTUS_ART_CONFIG.palette.groundShadow}" stroke-width="5" stroke-linecap="round" opacity="0.42" />
+      <path d="M20 75 C31 70 49 70 61 75" fill="none" stroke="${CACTUS_ART_CONFIG.palette.ground}" stroke-width="3" stroke-linecap="round" />
+    </g>
+  `, CACTUS_ART_CONFIG.symbolId);
+}
+
+/**
  * Builds the dynamite art from the provided western reference.
  * @param {SymbolArtConfig} config
  * @returns {string}
@@ -535,6 +629,8 @@ function createBootsSymbolArt(config) {
 
 /** @type {Record<string, (config: SymbolArtConfig) => string>} */
 const SYMBOL_ART_BUILDERS = {
+  cowboy: createCowboySymbolArt,
+  cactus: createCactusSymbolArt,
   boots: createBootsSymbolArt,
   [SYMBOL_IDS.dynamite]: createDynamiteSymbolArt,
   [SYMBOL_IDS.wild]: createWildSymbolArt
@@ -2817,6 +2913,8 @@ if (typeof module !== "undefined") {
     MULTIPLIER_CONFIG,
     NEAR_MISS_CONFIG,
     BADGE_ART_CONFIG,
+    CACTUS_ART_CONFIG,
+    COWBOY_ART_CONFIG,
     PAYLINES,
     PAYLINE_RENDER_CONFIG,
     SYMBOL_ART_CONFIG,
@@ -2828,6 +2926,8 @@ if (typeof module !== "undefined") {
     createBoardFeatureGrid,
     createBonusPrizes,
     createBootsSymbolArt,
+    createCactusSymbolArt,
+    createCowboySymbolArt,
     createEmptyFeatureGrid,
     createMatchedPositions,
     createNearMissPlanForPattern,
