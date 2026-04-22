@@ -38,6 +38,44 @@
  */
 
 /**
+ * @typedef {Object} NearMissTimingConfig
+ * @property {number} teaseHoldMs
+ * @property {number} slideMs
+ * @property {number} slideDistanceRows
+ * @property {string[]} frames
+ */
+
+/**
+ * @typedef {Object} NearMissPattern
+ * @property {string} id
+ * @property {string} lineName
+ * @property {number} matchCount
+ * @property {number} missReel
+ * @property {string[]} eligibleSymbolIds
+ */
+
+/**
+ * @typedef {Object} NearMissConfig
+ * @property {boolean} enabled
+ * @property {number} probability
+ * @property {boolean} paidSpinsOnly
+ * @property {boolean} disableDuringFastPlay
+ * @property {NearMissTimingConfig} timing
+ * @property {NearMissPattern[]} patterns
+ */
+
+/**
+ * @typedef {Object} NearMissPlan
+ * @property {string} patternId
+ * @property {string} lineName
+ * @property {number} reel
+ * @property {number} row
+ * @property {string} symbolId
+ * @property {string} actualSymbolId
+ * @property {NearMissTimingConfig} timing
+ */
+
+/**
  * @typedef {Object} BonusPrize
  * @property {"coins" | "multiplier" | "free-spins" | "collect"} type
  * @property {string} label
@@ -120,6 +158,13 @@ const FREE_SPIN_CONFIG = {
     4: 12,
     5: 20
   }
+};
+
+const DEFAULT_NEAR_MISS_TIMING = {
+  teaseHoldMs: 260,
+  slideMs: 220,
+  slideDistanceRows: 1,
+  frames: ["tease", "slide", "settle"]
 };
 
 const JACKPOT_CONFIG = {
@@ -252,7 +297,41 @@ const PAYLINES = [
   { name: "trail-down", rows: [0, 0, 1, 2, 2] }
 ];
 
+/** @type {NearMissConfig} */
+const NEAR_MISS_CONFIG = {
+  enabled: false,
+  probability: 0.18,
+  paidSpinsOnly: true,
+  disableDuringFastPlay: true,
+  timing: { ...DEFAULT_NEAR_MISS_TIMING },
+  patterns: [
+    {
+      id: "top-line-third-reel-slide",
+      lineName: "top",
+      matchCount: 2,
+      missReel: 2,
+      eligibleSymbolIds: ["badge", "boots", "cowboy", "wanted", "cactus", "a", "k", "q", "j", "10"]
+    },
+    {
+      id: "middle-line-third-reel-slide",
+      lineName: "middle",
+      matchCount: 2,
+      missReel: 2,
+      eligibleSymbolIds: ["badge", "boots", "cowboy", "wanted", "cactus", "a", "k", "q", "j", "10"]
+    },
+    {
+      id: "bottom-line-third-reel-slide",
+      lineName: "bottom",
+      matchCount: 2,
+      missReel: 2,
+      eligibleSymbolIds: ["badge", "boots", "cowboy", "wanted", "cactus", "a", "k", "q", "j", "10"]
+    }
+  ]
+};
+
 const HORIZONTAL_PAYLINES = ["top", "middle", "bottom"];
+const NEAR_MISS_SPECIAL_SYMBOL_IDS = [SYMBOL_IDS.wild, SYMBOL_IDS.scatter, SYMBOL_IDS.dynamite];
+const NEAR_MISS_FRAME_NAMES = ["tease", "slide", "settle"];
 
 /** @type {Record<string, SymbolDefinition>} */
 const SYMBOL_MAP = SYMBOLS.reduce((map, symbol) => {
@@ -715,6 +794,214 @@ function getFreeSpinAward(scatterCount) {
 }
 
 /**
+ * Clamps a probability into the supported 0-1 range.
+ * @param {number} value
+ * @returns {number}
+ */
+function clampProbability(value) {
+  if (!Number.isFinite(value)) {
+    return 0;
+  }
+
+  return Math.min(1, Math.max(0, value));
+}
+
+/**
+ * Finds a configured payline by name.
+ * @param {string} lineName
+ * @returns {{name: string, rows: number[]} | null}
+ */
+function getPaylineByName(lineName) {
+  return PAYLINES.find((payline) => payline.name === lineName) || null;
+}
+
+/**
+ * Checks whether a near-miss pattern can map to the current reel layout.
+ * @param {NearMissPattern} pattern
+ * @returns {boolean}
+ */
+function isValidNearMissPattern(pattern) {
+  const payline = pattern && getPaylineByName(pattern.lineName);
+  return Boolean(
+    payline
+    && typeof pattern.id === "string"
+    && pattern.id.length > 0
+    && Number.isInteger(pattern.matchCount)
+    && pattern.matchCount >= 1
+    && pattern.matchCount < GAME_LIMITS.reelCount
+    && Number.isInteger(pattern.missReel)
+    && pattern.missReel >= pattern.matchCount
+    && pattern.missReel < GAME_LIMITS.reelCount
+    && Array.isArray(pattern.eligibleSymbolIds)
+    && pattern.eligibleSymbolIds.some((symbolId) => SYMBOL_MAP[symbolId] && !NEAR_MISS_SPECIAL_SYMBOL_IDS.includes(symbolId))
+  );
+}
+
+/**
+ * Returns a defensive near-miss timing config.
+ * @param {Partial<NearMissTimingConfig>} timing
+ * @returns {NearMissTimingConfig}
+ */
+function validateNearMissTiming(timing = {}) {
+  const frameValues = Array.isArray(timing.frames)
+    ? timing.frames.filter((frameName) => NEAR_MISS_FRAME_NAMES.includes(frameName))
+    : DEFAULT_NEAR_MISS_TIMING.frames;
+
+  return {
+    teaseHoldMs: Number.isFinite(timing.teaseHoldMs) && timing.teaseHoldMs >= 0
+      ? timing.teaseHoldMs
+      : DEFAULT_NEAR_MISS_TIMING.teaseHoldMs,
+    slideMs: Number.isFinite(timing.slideMs) && timing.slideMs >= 0
+      ? timing.slideMs
+      : DEFAULT_NEAR_MISS_TIMING.slideMs,
+    slideDistanceRows: Number.isFinite(timing.slideDistanceRows) && timing.slideDistanceRows > 0
+      ? timing.slideDistanceRows
+      : DEFAULT_NEAR_MISS_TIMING.slideDistanceRows,
+    frames: frameValues.length > 0 ? frameValues : DEFAULT_NEAR_MISS_TIMING.frames
+  };
+}
+
+/**
+ * Validates and normalizes the near-miss configuration.
+ * @param {Partial<NearMissConfig>} config
+ * @returns {NearMissConfig}
+ */
+function validateNearMissConfig(config = NEAR_MISS_CONFIG) {
+  const source = config && typeof config === "object" ? config : {};
+  const sourcePatterns = Array.isArray(source.patterns) ? source.patterns : [];
+  const patterns = sourcePatterns
+    .filter(isValidNearMissPattern)
+    .map((pattern) => ({
+      id: pattern.id,
+      lineName: pattern.lineName,
+      matchCount: pattern.matchCount,
+      missReel: pattern.missReel,
+      eligibleSymbolIds: pattern.eligibleSymbolIds.filter((symbolId) => SYMBOL_MAP[symbolId] && !NEAR_MISS_SPECIAL_SYMBOL_IDS.includes(symbolId))
+    }));
+
+  return {
+    enabled: source.enabled === true,
+    probability: clampProbability(source.probability),
+    paidSpinsOnly: source.paidSpinsOnly !== false,
+    disableDuringFastPlay: source.disableDuringFastPlay !== false,
+    timing: validateNearMissTiming(source.timing),
+    patterns
+  };
+}
+
+/**
+ * Checks whether the spin result can show a near-miss tease.
+ * @param {{result?: WinResult, usedFreeSpin?: boolean, fastPlayEnabled?: boolean, jackpotTier?: string | null}} spinContext
+ * @param {Partial<NearMissConfig>} config
+ * @returns {boolean}
+ */
+function isNearMissEligible(spinContext, config = NEAR_MISS_CONFIG) {
+  const safeConfig = validateNearMissConfig(config);
+  const result = spinContext && spinContext.result;
+
+  if (!safeConfig.enabled || safeConfig.probability <= 0 || safeConfig.patterns.length === 0 || !result) {
+    return false;
+  }
+
+  if (safeConfig.paidSpinsOnly && spinContext.usedFreeSpin) {
+    return false;
+  }
+
+  if (safeConfig.disableDuringFastPlay && spinContext.fastPlayEnabled) {
+    return false;
+  }
+
+  return result.totalWin === 0
+    && result.freeSpinsAwarded === 0
+    && !result.bonusTriggered
+    && !spinContext.jackpotTier;
+}
+
+/**
+ * Returns the symbol that can form a two-reel near miss, if one exists.
+ * @param {string[]} matchSymbols
+ * @param {string[]} eligibleSymbolIds
+ * @returns {string | null}
+ */
+function getNearMissMatchSymbol(matchSymbols, eligibleSymbolIds) {
+  const [targetSymbolId] = matchSymbols;
+
+  if (!targetSymbolId || NEAR_MISS_SPECIAL_SYMBOL_IDS.includes(targetSymbolId) || !eligibleSymbolIds.includes(targetSymbolId)) {
+    return null;
+  }
+
+  return matchSymbols.every((symbolId) => symbolId === targetSymbolId) ? targetSymbolId : null;
+}
+
+/**
+ * Builds a near-miss plan for a specific pattern if the final board already supports it.
+ * @param {string[][]} board
+ * @param {NearMissPattern} pattern
+ * @param {NearMissTimingConfig} timing
+ * @returns {NearMissPlan | null}
+ */
+function createNearMissPlanForPattern(board, pattern, timing) {
+  const payline = getPaylineByName(pattern.lineName);
+
+  if (!payline || !board || !board[0]) {
+    return null;
+  }
+
+  const lineSymbols = payline.rows.map((row, reel) => board[row] && board[row][reel]);
+  const symbolId = getNearMissMatchSymbol(lineSymbols.slice(0, pattern.matchCount), pattern.eligibleSymbolIds);
+  const row = payline.rows[pattern.missReel];
+  const actualSymbolId = lineSymbols[pattern.missReel];
+
+  if (!symbolId || !actualSymbolId || actualSymbolId === symbolId || NEAR_MISS_SPECIAL_SYMBOL_IDS.includes(actualSymbolId)) {
+    return null;
+  }
+
+  return {
+    patternId: pattern.id,
+    lineName: pattern.lineName,
+    reel: pattern.missReel,
+    row,
+    symbolId,
+    actualSymbolId,
+    timing
+  };
+}
+
+/**
+ * Selects a near-miss plan without changing the final board or win result.
+ * @param {string[][]} board
+ * @param {WinResult} result
+ * @param {{usedFreeSpin?: boolean, fastPlayEnabled?: boolean, jackpotTier?: string | null}} spinContext
+ * @param {Partial<NearMissConfig>} config
+ * @param {() => number} randomFn
+ * @returns {NearMissPlan | null}
+ */
+function selectNearMissPlan(board, result, spinContext = {}, config = NEAR_MISS_CONFIG, randomFn = Math.random) {
+  const safeConfig = validateNearMissConfig(config);
+  const context = { ...spinContext, result };
+
+  if (!isNearMissEligible(context, safeConfig)) {
+    return null;
+  }
+
+  const roll = typeof randomFn === "function" ? clampProbability(randomFn()) : 1;
+  if (roll >= safeConfig.probability) {
+    return null;
+  }
+
+  const candidates = safeConfig.patterns
+    .map((pattern) => createNearMissPlanForPattern(board, pattern, safeConfig.timing))
+    .filter(Boolean);
+
+  if (candidates.length === 0) {
+    return null;
+  }
+
+  const candidateRoll = typeof randomFn === "function" ? clampProbability(randomFn()) : 0;
+  return candidates[Math.min(candidates.length - 1, Math.floor(candidateRoll * candidates.length))];
+}
+
+/**
  * Reads feature metadata for a single cell.
  * @param {(BoardCellFeature | null)[][] | undefined} boardFeatures
  * @param {number} row
@@ -958,6 +1245,132 @@ function renderBoard(board, boardFeatures = state.boardFeatures) {
       reelElement.appendChild(createSymbolCell(board[row][reelIndex], reelIndex, row, getCellFeature(boardFeatures, row, reelIndex)));
     }
   });
+}
+
+/**
+ * Removes any transient near-miss classes from reel DOM.
+ * @param {Element[] | NodeListOf<Element>} [reels]
+ */
+function clearNearMissVisuals(reels = document.querySelectorAll(".reel")) {
+  reels.forEach((reelElement) => {
+    reelElement.classList.remove("near-miss-reel", "near-miss-finished");
+    reelElement.querySelectorAll(".symbol-cell").forEach((cell) => {
+      cell.classList.remove("near-miss-tease", "near-miss-slide", "near-miss-settle");
+      cell.removeAttribute("data-near-miss");
+      cell.removeAttribute("style");
+    });
+  });
+}
+
+/**
+ * Renders one reel in its final settled state.
+ * @param {Element} reelElement
+ * @param {number} reelIndex
+ * @param {string[][]} board
+ * @param {(BoardCellFeature | null)[][]} boardFeatures
+ */
+function renderSettledReel(reelElement, reelIndex, board, boardFeatures) {
+  if (!reelElement || !board || !board[0]) {
+    return;
+  }
+
+  reelElement.classList.remove("spinning");
+  reelElement.innerHTML = "";
+
+  for (let row = 0; row < GAME_LIMITS.rowCount; row += 1) {
+    reelElement.appendChild(createSymbolCell(board[row][reelIndex], reelIndex, row, getCellFeature(boardFeatures, row, reelIndex)));
+  }
+}
+
+/**
+ * Checks whether a near-miss visual frame is enabled for the current plan.
+ * @param {NearMissPlan} plan
+ * @param {"tease" | "slide" | "settle"} frameName
+ * @returns {boolean}
+ */
+function shouldShowNearMissFrame(plan, frameName) {
+  return Boolean(plan && plan.timing.frames.includes(frameName));
+}
+
+/**
+ * Adds CSS timing values to the teased symbol cell.
+ * @param {Element} cell
+ * @param {NearMissTimingConfig} timing
+ */
+function applyNearMissCellTiming(cell, timing) {
+  cell.style.setProperty("--near-miss-slide-distance", `calc(${timing.slideDistanceRows} * (var(--cell-size) + var(--reel-gap)))`);
+  cell.style.setProperty("--near-miss-slide-ms", `${timing.slideMs}ms`);
+}
+
+/**
+ * Renders the near-miss reel as if the missing payline symbol had stopped in view.
+ * @param {Element} reelElement
+ * @param {number} reelIndex
+ * @param {string[][]} board
+ * @param {(BoardCellFeature | null)[][]} boardFeatures
+ * @param {NearMissPlan} plan
+ */
+function renderNearMissTeaseReel(reelElement, reelIndex, board, boardFeatures, plan) {
+  if (!reelElement || !plan || reelIndex !== plan.reel) {
+    return;
+  }
+
+  reelElement.classList.remove("spinning");
+  reelElement.classList.add("near-miss-reel");
+  reelElement.innerHTML = "";
+
+  for (let row = 0; row < GAME_LIMITS.rowCount; row += 1) {
+    const symbolId = row === plan.row ? plan.symbolId : board[row][reelIndex];
+    const cell = createSymbolCell(symbolId, reelIndex, row, getCellFeature(boardFeatures, row, reelIndex));
+
+    if (row === plan.row && shouldShowNearMissFrame(plan, "tease")) {
+      cell.classList.add("near-miss-tease");
+      cell.dataset.nearMiss = "tease";
+      applyNearMissCellTiming(cell, plan.timing);
+    }
+
+    reelElement.appendChild(cell);
+  }
+}
+
+/**
+ * Starts the slide-away portion of a near-miss tease.
+ * @param {Element} reelElement
+ * @param {NearMissPlan} plan
+ */
+function applyNearMissSlideFrame(reelElement, plan) {
+  if (!reelElement || !shouldShowNearMissFrame(plan, "slide")) {
+    return;
+  }
+
+  const teasedCell = reelElement.querySelector(`[data-reel="${plan.reel}"][data-row="${plan.row}"]`);
+  if (teasedCell) {
+    teasedCell.classList.add("near-miss-slide");
+    teasedCell.dataset.nearMiss = "slide";
+  }
+}
+
+/**
+ * Renders the final missed symbol after the near-miss slide finishes.
+ * @param {Element} reelElement
+ * @param {number} reelIndex
+ * @param {string[][]} board
+ * @param {(BoardCellFeature | null)[][]} boardFeatures
+ * @param {NearMissPlan} plan
+ */
+function renderNearMissFinalReel(reelElement, reelIndex, board, boardFeatures, plan) {
+  renderSettledReel(reelElement, reelIndex, board, boardFeatures);
+
+  if (!reelElement || !plan || !shouldShowNearMissFrame(plan, "settle")) {
+    return;
+  }
+
+  reelElement.classList.add("near-miss-reel", "near-miss-finished");
+  const missedCell = reelElement.querySelector(`[data-reel="${plan.reel}"][data-row="${plan.row}"]`);
+  if (missedCell) {
+    missedCell.classList.add("near-miss-settle");
+    missedCell.dataset.nearMiss = "settle";
+  }
 }
 
 /**
@@ -1482,11 +1895,13 @@ function resolveBonusPick(crateIndex) {
  * @param {string[][]} board
  * @param {(BoardCellFeature | null)[][]} boardFeatures
  * @param {boolean} usedFreeSpin
+ * @param {{jackpotTier?: "mini" | "major" | "grand" | null}} [options]
  */
-function settleSpin(board, boardFeatures, usedFreeSpin) {
+function settleSpin(board, boardFeatures, usedFreeSpin, options = {}) {
   const result = evaluateBoard(board, state.bet, { boardFeatures, isFreeSpinRound: usedFreeSpin });
   let jackpotTier = null;
   let jackpotAmount = 0;
+  const hasResolvedJackpot = Object.prototype.hasOwnProperty.call(options, "jackpotTier");
 
   state.balance += result.totalWin;
   state.freeSpins += result.freeSpinsAwarded;
@@ -1496,7 +1911,7 @@ function settleSpin(board, boardFeatures, usedFreeSpin) {
   highlightWins(result);
 
   if (!usedFreeSpin) {
-    jackpotTier = determineJackpotTier(board) || rollRandomJackpotTier();
+    jackpotTier = hasResolvedJackpot ? options.jackpotTier : determineJackpotTier(board) || rollRandomJackpotTier();
   }
 
   if (jackpotTier) {
@@ -1538,28 +1953,91 @@ function finishActiveSpin() {
     return;
   }
 
-  activeSpin.intervals.forEach((intervalId) => window.clearInterval(intervalId));
-  activeSpin.timeouts.forEach((timeoutId) => window.clearTimeout(timeoutId));
+  const spinToFinish = activeSpin;
 
-  activeSpin.reels.forEach((reelElement, reelIndex) => {
-    reelElement.classList.remove("spinning");
-    reelElement.innerHTML = "";
+  spinToFinish.intervals.forEach((intervalId) => window.clearInterval(intervalId));
+  spinToFinish.timeouts.forEach((timeoutId) => window.clearTimeout(timeoutId));
+  clearNearMissVisuals(spinToFinish.reels);
 
-    for (let row = 0; row < GAME_LIMITS.rowCount; row += 1) {
-      reelElement.appendChild(
-        createSymbolCell(
-          activeSpin.nextBoard[row][reelIndex],
-          reelIndex,
-          row,
-          getCellFeature(activeSpin.nextBoardFeatures, row, reelIndex)
-        )
-      );
-    }
+  spinToFinish.reels.forEach((reelElement, reelIndex) => {
+    renderSettledReel(reelElement, reelIndex, spinToFinish.nextBoard, spinToFinish.nextBoardFeatures);
   });
 
-  state.board = activeSpin.nextBoard;
-  state.boardFeatures = activeSpin.nextBoardFeatures;
-  settleSpin(activeSpin.nextBoard, activeSpin.nextBoardFeatures, activeSpin.usedFreeSpin);
+  state.board = spinToFinish.nextBoard;
+  state.boardFeatures = spinToFinish.nextBoardFeatures;
+  settleSpin(spinToFinish.nextBoard, spinToFinish.nextBoardFeatures, spinToFinish.usedFreeSpin, {
+    jackpotTier: spinToFinish.jackpotTier
+  });
+}
+
+/**
+ * Completes the spin after the last reel has reached its final visual state.
+ * @param {number} reelIndex
+ * @param {Element[]} reels
+ * @param {string[][]} nextBoard
+ * @param {(BoardCellFeature | null)[][]} nextBoardFeatures
+ * @param {boolean} usedFreeSpin
+ */
+function completeSpinAfterReelStop(reelIndex, reels, nextBoard, nextBoardFeatures, usedFreeSpin) {
+  if (reelIndex !== reels.length - 1) {
+    return;
+  }
+
+  const spinToSettle = activeSpin;
+  state.board = nextBoard;
+  state.boardFeatures = nextBoardFeatures;
+  settleSpin(nextBoard, nextBoardFeatures, usedFreeSpin, {
+    jackpotTier: spinToSettle ? spinToSettle.jackpotTier : null
+  });
+}
+
+/**
+ * Confirms that a delayed reel action still belongs to the active spin.
+ * @param {string[][]} nextBoard
+ * @returns {boolean}
+ */
+function isCurrentSpinBoard(nextBoard) {
+  return Boolean(activeSpin && activeSpin.nextBoard === nextBoard);
+}
+
+/**
+ * Plays the near-miss choreography for a single reel before rendering the final miss.
+ * @param {Element} reelElement
+ * @param {number} reelIndex
+ * @param {Element[]} reels
+ * @param {string[][]} nextBoard
+ * @param {(BoardCellFeature | null)[][]} nextBoardFeatures
+ * @param {boolean} usedFreeSpin
+ * @param {NearMissPlan} nearMissPlan
+ */
+function stopReelWithNearMiss(reelElement, reelIndex, reels, nextBoard, nextBoardFeatures, usedFreeSpin, nearMissPlan) {
+  renderNearMissTeaseReel(reelElement, reelIndex, nextBoard, nextBoardFeatures, nearMissPlan);
+
+  const slideTimeoutId = window.setTimeout(() => {
+    if (!isCurrentSpinBoard(nextBoard)) {
+      return;
+    }
+
+    applyNearMissSlideFrame(reelElement, nearMissPlan);
+
+    const settleTimeoutId = window.setTimeout(() => {
+      if (!isCurrentSpinBoard(nextBoard)) {
+        return;
+      }
+
+      renderNearMissFinalReel(reelElement, reelIndex, nextBoard, nextBoardFeatures, nearMissPlan);
+      playSound("reelStop");
+      completeSpinAfterReelStop(reelIndex, reels, nextBoard, nextBoardFeatures, usedFreeSpin);
+    }, nearMissPlan.timing.slideMs);
+
+    if (activeSpin) {
+      activeSpin.timeouts.push(settleTimeoutId);
+    }
+  }, nearMissPlan.timing.teaseHoldMs);
+
+  if (activeSpin) {
+    activeSpin.timeouts.push(slideTimeoutId);
+  }
 }
 
 /**
@@ -1574,6 +2052,7 @@ function spin() {
 
   state.isSpinning = true;
   clearWinHighlights();
+  clearNearMissVisuals();
   hideWinPopup();
   clearBigWinCelebration();
   setMessage(usedFreeSpin ? `Free spin rolling (x${FREE_SPIN_CONFIG.multiplier})` : "Reels spinning");
@@ -1590,6 +2069,13 @@ function spin() {
 
   const nextBoard = createBoard();
   const nextBoardFeatures = createBoardFeatureGrid(nextBoard);
+  const nextResult = evaluateBoard(nextBoard, state.bet, { boardFeatures: nextBoardFeatures, isFreeSpinRound: usedFreeSpin });
+  const jackpotTier = usedFreeSpin ? null : determineJackpotTier(nextBoard) || rollRandomJackpotTier();
+  const nearMissPlan = selectNearMissPlan(nextBoard, nextResult, {
+    usedFreeSpin,
+    fastPlayEnabled: state.fastPlayEnabled,
+    jackpotTier
+  });
   const reels = Array.from(document.querySelectorAll(".reel"));
   const intervals = [];
   const timeouts = [];
@@ -1598,6 +2084,8 @@ function spin() {
     usedFreeSpin,
     nextBoard,
     nextBoardFeatures,
+    jackpotTier,
+    nearMissPlan,
     reels,
     intervals,
     timeouts
@@ -1610,27 +2098,27 @@ function spin() {
 
   reels.forEach((reelElement, reelIndex) => {
     const interval = window.setInterval(() => renderSpinStrip(reelElement, reelIndex), 86);
-    const stopDelay = 650 + reelIndex * 260;
+    let stopDelay = 650 + reelIndex * 260;
+
+    if (nearMissPlan && reelIndex > nearMissPlan.reel) {
+      stopDelay += nearMissPlan.timing.teaseHoldMs + nearMissPlan.timing.slideMs;
+    }
+
     const timeoutId = window.setTimeout(() => {
       if (!activeSpin || activeSpin.nextBoard !== nextBoard) {
         return;
       }
 
       window.clearInterval(interval);
-      reelElement.classList.remove("spinning");
-      reelElement.innerHTML = "";
 
-      for (let row = 0; row < GAME_LIMITS.rowCount; row += 1) {
-        reelElement.appendChild(createSymbolCell(nextBoard[row][reelIndex], reelIndex, row, getCellFeature(nextBoardFeatures, row, reelIndex)));
+      if (activeSpin.nearMissPlan && activeSpin.nearMissPlan.reel === reelIndex) {
+        stopReelWithNearMiss(reelElement, reelIndex, reels, nextBoard, nextBoardFeatures, usedFreeSpin, activeSpin.nearMissPlan);
+        return;
       }
 
+      renderSettledReel(reelElement, reelIndex, nextBoard, nextBoardFeatures);
       playSound("reelStop");
-
-      if (reelIndex === reels.length - 1) {
-        state.board = nextBoard;
-        state.boardFeatures = nextBoardFeatures;
-        settleSpin(nextBoard, nextBoardFeatures, usedFreeSpin);
-      }
+      completeSpinAfterReelStop(reelIndex, reels, nextBoard, nextBoardFeatures, usedFreeSpin);
     }, stopDelay);
 
     intervals.push(interval);
@@ -1885,6 +2373,7 @@ if (typeof module !== "undefined") {
     RETENTION_CONFIG,
     STORAGE_KEYS,
     MULTIPLIER_CONFIG,
+    NEAR_MISS_CONFIG,
     PAYLINES,
     SYMBOLS,
     applyRewardToState,
@@ -1894,17 +2383,21 @@ if (typeof module !== "undefined") {
     createBoardFeatureGrid,
     createBonusPrizes,
     createEmptyFeatureGrid,
+    createNearMissPlanForPattern,
     createRewardFeedbackContent,
     determineJackpotTier,
     evaluateBoard,
     getFreeSpinAward,
     getLeftToRightMatch,
     getLineMultiplier,
+    isNearMissEligible,
     isKeyboardShortcutBlockedTarget,
     isSpinShortcutEvent,
     isWildHorizontalLine,
     resolveDailyLoginReward,
+    selectNearMissPlan,
     shouldHandleSpinShortcut,
-    shouldGrantDailyReward
+    shouldGrantDailyReward,
+    validateNearMissConfig
   };
 }

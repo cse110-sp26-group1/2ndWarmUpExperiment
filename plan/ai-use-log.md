@@ -48,7 +48,7 @@
 
 - [ ] Cascading reels (winning symbols disappear and refill)
 - [ ] Cluster pay system (if implemented)
-- [ ] Near-miss outcomes
+- [x] Near-miss outcomes
 - [x] Progressive rewards / scaling bonuses
 
 ---
@@ -628,3 +628,174 @@ If Yes:
 - Why manual editing was necessary:
 - Whether the fix introduced new issues or resolved the problem:
 ---
+# Prompt 10 Entry
+## Prompt used:
+## You are a careful senior engineer working in my existing vanilla JS slot machine project Gunslinger Gold. The project lives in `docs/` (`index.html`, `script.js`, `styles.css`) and already has working: reels/animation, spin button, balance+bet, paylines+paytable evaluation, wild/scatter/free spins, multipliers, bonus round, jackpots, popups/celebrations, settings/fast-play toggle, and an existing test suite in `test.spec.js`.
+
+## Goal
+Implement near-miss outcomes: on certain losing spins, the reel stop and visual behavior should tease a win (for example, it looks like it is about to land a winning symbol or line), then miss at the end. The final board must still be a loss.
+
+## Non-negotiable constraints
+
+### Preserve current behavior
+- Preserve all existing functionality.
+- Do not change any existing behavior that currently works.
+- Do not refactor or rewrite the architecture.
+- Keep the existing state object and the existing spin, evaluation, render, sound, and popup helpers.
+- Do not change payout odds or win math except what is strictly necessary to implement near-miss visuals for losing outcomes.
+- Do not introduce anything additional beyond these changes.
+- No new dependencies unless absolutely required. Prefer none.
+
+### Test constraints
+- Do not delete any tests.
+- Write all tests in `test.spec.js`, including unit, regression, smoke, and end-to-end tests.
+
+## Definition of “near-miss”
+
+### Core definition
+A near-miss is still a loss:
+- no payout
+- no win state changes
+
+### Presentation goal
+The presentation should make it feel like a win was close.
+
+### Example patterns
+Choose patterns that fit the existing payline rules, such as:
+- two reels or positions show a strong partial match and the final reel just barely misses
+- a reel appears to settle on the winning symbol, then slides one symbol past at the last moment
+
+### Visual consistency
+- Must be visually believable.
+- Must be consistent with the current reel animation system.
+
+## Implementation requirements
+
+### Outcome integrity
+- Do not fake wins.
+- The final evaluated board must be a loss.
+- Use the same evaluation logic as normal.
+
+### Integration approach
+- Implement near-miss as a presentation layer plus controlled stop choreography.
+- Do not implement it by rewriting evaluation.
+
+### Configuration
+Add a config-driven system with no hard-coded values for:
+- enabled toggle  
+  - choose the safest default, on or off, based on preserving current behavior
+- near-miss frequency or probability
+- allowed patterns
+- timing, slide distance, and frame settings used by the tease effect
+
+### Modularity
+Keep code modular:
+- isolate near-miss selection logic as pure, unit-testable logic
+- isolate animation and DOM effect logic
+- integrate into the existing spin and settle pipeline with minimal changes
+
+### Code quality
+- Add JSDoc for all new or changed functions.
+- Match the existing documentation style.
+- Keep linting quality high:
+  - no unused variables
+  - consistent style
+  - safe DOM access
+- Add error handling for:
+  - missing DOM nodes
+  - invalid config
+  - unexpected spin state  
+  without breaking current gameplay
+
+## Behavior rules
+
+### Spin type eligibility
+- Near-miss should only be possible on paid spins, or clearly specify if it can happen on free spins.
+- Choose the safest option and justify it through minimal code structure impact.
+
+### Fast-play and skip handling
+If fast-play is enabled or the user skips animation, near-miss should either:
+- be disabled automatically, or
+- be represented with an instantaneous but still clear almost-won effect
+
+Choose the least disruptive behavior.
+
+### Existing protections
+- Must not allow multiple spins during an active spin.
+- Keep existing protections in place.
+
+### Feature safety
+A near-miss must not affect:
+- jackpots
+- bonus triggers
+- free spins triggers
+
+A near-miss must never accidentally trigger a feature.
+
+## Testing requirements
+
+### Unit tests
+Add unit tests in `test.spec.js` for near-miss selection logic, including:
+- pattern selection
+- eligibility rules
+- config validation
+- loss-remains-loss invariant
+
+### Regression tests
+Add regression tests to ensure existing behavior is unchanged, especially:
+- payout evaluation
+- balance updates
+- free spins
+- multipliers
+- jackpots
+- bonus triggers
+
+### Playwright end-to-end tests
+Add end-to-end tests covering:
+- a normal spin still works
+- a near-miss loss presents the tease effect but ends as a loss
+- no payout occurs on near-miss
+- correct status message is shown after near-miss loss
+- fast-play or skip behavior does not break or double-trigger near-miss
+
+### Smoke tests
+Add Playwright smoke tests for:
+- app loads
+- basic UI is present
+- spin button is clickable
+- no console errors
+
+## Deliverables
+- Show exactly which files were changed.
+- Provide diffs for each changed file.
+- Briefly explain how the implementation guarantees:
+  - near-miss is presentation-only
+  - the final outcome remains a true loss
+  - existing features are preserved
+- Provide a quick manual test checklist for:
+  - near-miss scenarios
+  - no feature regression
+
+## Ambiguity handling
+- If anything is ambiguous, infer the safest default that best preserves current behavior.
+- Keep changes minimal and localized.
+
+## Result
+### List what it got correct:
+- Successfully implemented the near-miss feature
+
+### List what it didn't get correct:
+- None
+### List any unexpected behavior or errors it introduced:
+- None
+
+### Manual Edits (Only if LLM failed after attempts)
+- [x] None
+- [ ] Yes
+
+
+If Yes:
+
+- What was manually changed:
+- Why manual editing was necessary:
+- Whether the fix introduced new issues or resolved the problem:

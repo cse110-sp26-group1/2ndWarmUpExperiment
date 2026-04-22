@@ -40,6 +40,16 @@ const TEST_CONFIG = {
     [{ multiplier: 5 }, { multiplier: 5 }, null, null, null],
     [null, null, null, null, null]
   ],
+  nearMissBoard: [
+    ["badge", "badge", "k", "q", "10"],
+    ["cowboy", "boots", "a", "j", "q"],
+    ["a", "q", "j", "10", "k"]
+  ],
+  standardWinBoard: [
+    ["badge", "badge", "badge", "q", "10"],
+    ["cowboy", "boots", "a", "j", "q"],
+    ["a", "q", "j", "10", "k"]
+  ],
   jackpotBoard: [
     ["badge", "badge", "badge", "badge", "badge"],
     ["wild", "wild", "wild", "wild", "wild"],
@@ -83,6 +93,35 @@ async function settleBoard(page, board, usedFreeSpin = false) {
   }, { nextBoard: board, nextUsedFreeSpin: usedFreeSpin });
 }
 
+/**
+ * Configures the browser game to produce a deterministic near-miss candidate board.
+ * @param {import("@playwright/test").Page} page
+ * @param {{fastPlay?: boolean, holdMs?: number, slideMs?: number}} options
+ */
+async function prepareNearMissSpin(page, options = {}) {
+  await page.evaluate(({ board, fastPlay, holdMs, slideMs }) => {
+    state.fastPlayEnabled = Boolean(fastPlay);
+    state.balance = 1000;
+    state.bet = 10;
+    state.freeSpins = 0;
+    state.isBonusActive = false;
+    state.bonusRound = null;
+    document.getElementById("fastPlayToggle").checked = state.fastPlayEnabled;
+    NEAR_MISS_CONFIG.enabled = true;
+    NEAR_MISS_CONFIG.probability = 1;
+    NEAR_MISS_CONFIG.timing.teaseHoldMs = holdMs;
+    NEAR_MISS_CONFIG.timing.slideMs = slideMs;
+    createBoard = () => board.map((row) => [...row]);
+    rollRandomJackpotTier = () => null;
+    updateDisplays();
+  }, {
+    board: TEST_CONFIG.nearMissBoard,
+    fastPlay: options.fastPlay || false,
+    holdMs: options.holdMs || 520,
+    slideMs: options.slideMs || 260
+  });
+}
+
 test.describe("unit", () => {
   test("clamps bets and keeps free-spin awards configurable", async () => {
     expect(game.clampBet(0)).toBe(game.GAME_LIMITS.minBet);
@@ -101,6 +140,24 @@ test.describe("unit", () => {
     expect(result.totalWin).toBe(45280);
     expect(result.appliedMultiplier).toBe(50);
     expect(result.lineWins.find((lineWin) => lineWin.lineName === "middle").multiplier).toBe(50);
+  });
+
+  test("preserves base line payout math for normal wins", async () => {
+    const result = game.evaluateBoard(TEST_CONFIG.standardWinBoard, TEST_CONFIG.bet);
+
+    expect(result.totalWin).toBe(60);
+    expect(result.freeSpinsAwarded).toBe(0);
+    expect(result.bonusTriggered).toBe(false);
+    expect(result.lineWins).toEqual([
+      expect.objectContaining({
+        lineName: "top",
+        symbolId: "badge",
+        count: 3,
+        baseWin: 60,
+        payout: 60,
+        multiplier: 1
+      })
+    ]);
   });
 
   test("detects jackpot tiers from board patterns", async () => {
@@ -180,6 +237,93 @@ test.describe("unit", () => {
     expect(game.shouldHandleSpinShortcut({ key: " ", repeat: false, target: blockedTarget })).toBe(false);
     expect(game.shouldHandleSpinShortcut({ key: " ", repeat: false, target: editableTarget })).toBe(false);
   });
+
+  test("validates near-miss config defensively", async () => {
+    const config = game.validateNearMissConfig({
+      enabled: true,
+      probability: 2,
+      timing: {
+        teaseHoldMs: -1,
+        slideMs: 125,
+        slideDistanceRows: 0,
+        frames: ["tease", "unknown", "settle"]
+      },
+      patterns: [
+        game.NEAR_MISS_CONFIG.patterns[0],
+        { id: "invalid", lineName: "missing", matchCount: 2, missReel: 2, eligibleSymbolIds: ["badge"] }
+      ]
+    });
+
+    expect(config.enabled).toBe(true);
+    expect(config.probability).toBe(1);
+    expect(config.timing.teaseHoldMs).toBe(game.NEAR_MISS_CONFIG.timing.teaseHoldMs);
+    expect(config.timing.slideMs).toBe(125);
+    expect(config.timing.slideDistanceRows).toBe(game.NEAR_MISS_CONFIG.timing.slideDistanceRows);
+    expect(config.timing.frames).toEqual(["tease", "settle"]);
+    expect(config.patterns).toHaveLength(1);
+  });
+
+  test("applies near-miss eligibility rules to paid-spin losses only", async () => {
+    const result = game.evaluateBoard(TEST_CONFIG.nearMissBoard, TEST_CONFIG.bet);
+    const enabledConfig = { ...game.NEAR_MISS_CONFIG, enabled: true, probability: 1 };
+
+    expect(game.isNearMissEligible({ result, usedFreeSpin: false, fastPlayEnabled: false, jackpotTier: null }, enabledConfig)).toBe(true);
+    expect(game.isNearMissEligible({ result, usedFreeSpin: true, fastPlayEnabled: false, jackpotTier: null }, enabledConfig)).toBe(false);
+    expect(game.isNearMissEligible({ result, usedFreeSpin: false, fastPlayEnabled: true, jackpotTier: null }, enabledConfig)).toBe(false);
+    expect(game.isNearMissEligible({ result, usedFreeSpin: false, fastPlayEnabled: false, jackpotTier: "mini" }, enabledConfig)).toBe(false);
+    expect(game.isNearMissEligible({ result, usedFreeSpin: false, fastPlayEnabled: false, jackpotTier: null }, { ...enabledConfig, enabled: false })).toBe(false);
+  });
+
+  test("selects near-miss patterns without changing a losing outcome", async () => {
+    const result = game.evaluateBoard(TEST_CONFIG.nearMissBoard, TEST_CONFIG.bet);
+    const enabledConfig = {
+      ...game.NEAR_MISS_CONFIG,
+      enabled: true,
+      probability: 1,
+      patterns: [game.NEAR_MISS_CONFIG.patterns[0]]
+    };
+    const plan = game.selectNearMissPlan(
+      TEST_CONFIG.nearMissBoard,
+      result,
+      { usedFreeSpin: false, fastPlayEnabled: false, jackpotTier: null },
+      enabledConfig,
+      () => 0
+    );
+
+    expect(result.totalWin).toBe(0);
+    expect(result.freeSpinsAwarded).toBe(0);
+    expect(result.bonusTriggered).toBe(false);
+    expect(plan).toEqual(expect.objectContaining({
+      patternId: "top-line-third-reel-slide",
+      lineName: "top",
+      reel: 2,
+      row: 0,
+      symbolId: "badge",
+      actualSymbolId: "k"
+    }));
+    expect(game.evaluateBoard(TEST_CONFIG.nearMissBoard, TEST_CONFIG.bet).totalWin).toBe(0);
+  });
+
+  test("skips near-miss selection when probability roll misses or outcome wins", async () => {
+    const lossResult = game.evaluateBoard(TEST_CONFIG.nearMissBoard, TEST_CONFIG.bet);
+    const winResult = game.evaluateBoard(TEST_CONFIG.standardWinBoard, TEST_CONFIG.bet);
+    const enabledConfig = { ...game.NEAR_MISS_CONFIG, enabled: true, probability: 0.5 };
+
+    expect(game.selectNearMissPlan(
+      TEST_CONFIG.nearMissBoard,
+      lossResult,
+      { usedFreeSpin: false, fastPlayEnabled: false, jackpotTier: null },
+      enabledConfig,
+      () => 0.75
+    )).toBeNull();
+    expect(game.selectNearMissPlan(
+      TEST_CONFIG.standardWinBoard,
+      winResult,
+      { usedFreeSpin: false, fastPlayEnabled: false, jackpotTier: null },
+      { ...enabledConfig, probability: 1 },
+      () => 0
+    )).toBeNull();
+  });
 });
 
 test.describe("retention", () => {
@@ -199,6 +343,29 @@ test.describe("retention", () => {
   });
 });
 
+test.describe("smoke", () => {
+  test("app loads with core UI, clickable spin, and no console errors", async ({ page }) => {
+    const consoleErrors = [];
+    page.on("console", (message) => {
+      if (message.type() === "error") {
+        consoleErrors.push(message.text());
+      }
+    });
+
+    await gotoGame(page);
+
+    await expect(page.locator("#game-title")).toHaveText("Gunslinger Gold");
+    await expect(page.locator(".reel")).toHaveCount(game.GAME_LIMITS.reelCount);
+    await expect(page.locator("#spinButton")).toBeEnabled();
+
+    await page.click("#spinButton");
+    await expect(page.locator("#spinButton")).toHaveText("Skip");
+    await page.click("#spinButton");
+    await expect(page.locator("#spinButton")).toHaveText("Spin");
+    expect(consoleErrors).toEqual([]);
+  });
+});
+
 test.describe("end-to-end", () => {
   test.beforeEach(async ({ page }) => {
     await gotoGame(page);
@@ -212,6 +379,61 @@ test.describe("end-to-end", () => {
       state.bonusRound = null;
       updateDisplays();
     });
+  });
+
+  test("normal paid spin still settles through the existing spin button path", async ({ page }) => {
+    await page.evaluate(({ board }) => {
+      NEAR_MISS_CONFIG.enabled = false;
+      createBoard = () => board.map((row) => [...row]);
+      rollRandomJackpotTier = () => null;
+      updateDisplays();
+    }, { board: TEST_CONFIG.nearMissBoard });
+
+    await page.click("#spinButton");
+
+    await expect(page.locator("#spinButton")).toHaveText("Spin");
+    await expect(page.locator("#statusMessage")).toHaveText("No win this round");
+    await expect(page.locator("#balanceDisplay")).toHaveText("990");
+    await expect(page.locator(".near-miss-tease")).toHaveCount(0);
+  });
+
+  test("near-miss paid loss shows tease effect and ends as a loss", async ({ page }) => {
+    await prepareNearMissSpin(page);
+
+    await page.click("#spinButton");
+
+    const teasedCell = page.locator(".symbol-cell.near-miss-tease");
+    await expect(teasedCell).toHaveCount(1);
+    await expect(teasedCell).toHaveAttribute("data-symbol", "badge");
+    await expect(teasedCell).toHaveAttribute("data-reel", "2");
+    await expect(teasedCell).toHaveAttribute("data-row", "0");
+
+    await expect(page.locator("#spinButton")).toHaveText("Spin", { timeout: 5000 });
+    await expect(page.locator("#statusMessage")).toHaveText("No win this round");
+    await expect(page.locator("#balanceDisplay")).toHaveText("990");
+    await expect(page.locator("#winPopup")).not.toHaveClass(/show/);
+    await expect(page.locator('[data-reel="2"][data-row="0"]')).toHaveAttribute("data-symbol", "k");
+    await expect(page.locator('[data-reel="2"][data-row="0"]')).toHaveAttribute("data-near-miss", "settle");
+  });
+
+  test("fast-play and skip finish near-miss candidates without duplicate settlement", async ({ page }) => {
+    await prepareNearMissSpin(page, { fastPlay: true });
+
+    await page.click("#spinButton");
+
+    await expect(page.locator("#spinButton")).toHaveText("Spin");
+    await expect(page.locator(".near-miss-tease")).toHaveCount(0);
+    await expect(page.locator("#balanceDisplay")).toHaveText("990");
+
+    await prepareNearMissSpin(page, { fastPlay: false, holdMs: 1200, slideMs: 400 });
+    await page.click("#spinButton");
+    await expect(page.locator("#spinButton")).toHaveText("Skip");
+    await page.click("#spinButton");
+    await expect(page.locator("#spinButton")).toHaveText("Spin");
+    await expect(page.locator(".near-miss-tease")).toHaveCount(0);
+    await expect(page.locator("#balanceDisplay")).toHaveText("990");
+    await page.waitForTimeout(1900);
+    await expect(page.locator("#balanceDisplay")).toHaveText("990");
   });
 
   test("shows jackpot meters and upgrades free spins to 8 on three scatters", async ({ page }) => {
