@@ -10,17 +10,19 @@
   --sand: #d8a966;
   --panel: rgba(30, 16, 9, 0.68);
   --panel-bright: rgba(112, 57, 25, 0.72);
-  --shell-padding-block: clamp(12px, 2vh, 28px);
+  --shell-padding-block: clamp(10px, 1.6vh, 24px);
   --shell-padding-inline: clamp(12px, 1.6vw, 20px);
-  --slot-machine-width: min(1000px, calc(100vw - (var(--shell-padding-inline) * 2)));
+  --slot-machine-width: min(1040px, calc(100vw - (var(--shell-padding-inline) * 2)));
   --slot-machine-padding-top: clamp(16px, 2vh, 22px);
   --slot-machine-padding-inline: clamp(16px, 1.9vw, 24px);
   --slot-machine-padding-bottom: clamp(18px, 2.2vh, 24px);
   --machine-section-gap: clamp(8px, 1.3vh, 12px);
-  --cell-size: clamp(102px, min(8.6vw, 13.25vh), 136px);
+  --cell-size: clamp(110px, min(9.2vw, 14.75vh), 142px);
   --reel-gap: clamp(5px, 0.75vh, 8px);
-  --reel-window-padding: clamp(10px, 1.4vh, 14px);
-  --reel-padding: clamp(5px, 0.8vh, 7px);
+  --reel-window-padding: clamp(8px, 1vh, 10px);
+  --reel-padding: clamp(4px, 0.65vh, 6px);
+  --reel-border-width: 3px;
+  --reel-window-border-width: 5px;
   --frame-radius: 8px;
   --overlay-padding: 24px;
   --bonus-panel-max-height: calc(100dvh - (var(--overlay-padding) * 2));
@@ -249,7 +251,7 @@ h1 {
   justify-content: center;
   padding: var(--reel-window-padding);
   overflow: hidden;
-  border: 5px solid #211009;
+  border: var(--reel-window-border-width) solid #211009;
   border-radius: var(--frame-radius);
   background:
     linear-gradient(90deg, rgba(255, 209, 108, 0.14), transparent 10% 90%, rgba(255, 209, 108, 0.14)),
@@ -695,6 +697,8 @@ h1 {
 
 .payline-guide-top {
   top: calc(var(--reel-window-padding) + var(--cell-size) / 2);
+  width: min(100%, calc((var(--cell-size) + (var(--reel-padding) * 2) + (var(--reel-border-width) * 2)) * 5 + (var(--reel-gap) * 4) + (var(--reel-window-padding) * 2)));
+  margin-inline: auto;
 }
 
 .payline-guide-middle {
@@ -712,7 +716,7 @@ h1 {
   min-width: 0;
   padding: var(--reel-padding);
   overflow: hidden;
-  border: 3px solid #4e2917;
+  border: var(--reel-border-width) solid #4e2917;
   border-radius: 6px;
   background:
     linear-gradient(90deg, rgba(255, 255, 255, 0.08), transparent 16% 84%, rgba(0, 0, 0, 0.22)),

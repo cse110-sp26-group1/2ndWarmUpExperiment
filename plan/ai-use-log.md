@@ -2297,3 +2297,93 @@ If a single breakpoint value is ambiguous, target 1280×800 as the minimum deskt
 - [x] None
 - [ ] Yes
 ---
+
+# Prompt 23
+
+## Role
+
+You are a careful senior engineer working in my existing vanilla JS slot machine project, Gunslinger Gold. The project lives in `docs/` (`index.html`, `script.js`, `styles.css`) with tests in `docs/tests/test.spec.js`.
+
+## Problem
+
+The previous layout fix made the game fit within the viewport, but the reel grid and symbol cells are now too small. There is excess blank space around the reels that should be reclaimed. The reels need to be as large as possible while still keeping the entire UI (title, jackpot bar, reel grid, control panel) within the viewport at 100% zoom on a 1280×800 desktop screen.
+
+## Goal
+
+Maximize the size of the reel grid and symbol cells to fill the available space inside the game frame, without causing any part of the UI to overflow or require scrolling. The overall game container must still fit fully within a 1280×800 viewport at 100% zoom.
+
+## What to Change
+
+- Increase the reel grid and symbol cell dimensions to consume the blank space currently surrounding them.
+- Reduce excess padding and margins around the reel grid area that are contributing to wasted space.
+- Keep the title, status bar, jackpot display, and control panel at their current sizes — do not shrink them further.
+- Use the freed space to grow the reel grid as large as it can be while the full UI still fits within the viewport at 100% zoom.
+- The symbol cells should return as close as possible to their original pre-fix sizes, constrained only by what the viewport can accommodate.
+- Preserve the responsive skeleton for tablet/mobile; do not regress smaller breakpoints.
+- Do not add a scrollbar as the primary fix.
+
+## Non-Negotiable Constraints
+
+- Preserve all existing functionality.
+- Do not change any existing behavior, game logic, RNG, payout math, or animations.
+- Do not refactor unrelated architecture.
+- Do not introduce anything additional beyond this layout change.
+- No new dependencies.
+
+## Engineering Requirements
+
+- Add JSDoc comments to any new or modified JavaScript functions.
+- Do not use hard-coded magic values; use constants or config objects where appropriate.
+- Keep linting clean.
+- Add error handling for any dynamic sizing logic (e.g., missing DOM nodes).
+
+## Testing Requirements
+
+All tests go in `docs/tests/test.spec.js`. Do not delete any existing tests.
+
+### Unit Tests
+- Any JS helper added for dynamic sizing returns correct values given valid and invalid inputs.
+
+### Playwright End-to-End Tests
+- Smoke: page loads at a 1280×800 viewport with no console errors and the spin button is visible and clickable without scrolling.
+- Verify the main game container does not overflow the viewport at 1280×800.
+- Verify the reel grid is larger than it was after the previous fix (assert the reel container height or symbol cell size is greater than the post-fix minimum).
+- Verify a basic spin still completes correctly after the layout change.
+- Regression: existing spin, free-spin, bonus, and jackpot flows are unaffected.
+
+## Deliverables
+
+- Diffs for each changed file.
+- A short explanation of what space was reclaimed and how the reel grid was grown.
+- A quick manual test checklist:
+  - Game fits at 100% zoom on a 1280×800 window with no scrolling
+  - Reel grid and symbol cells are visibly larger than the previous fix
+  - No content clipped or cut off
+  - Spin button visible without scrolling
+  - All existing features still work
+
+## Ambiguity Handling
+
+If there is a trade-off between reel size and viewport fit, prioritize viewport fit — the entire UI must remain visible at 100% zoom. Otherwise, maximize reel grid size as aggressively as the available space allows.
+
+---
+
+## Results
+
+### List what it got correct:
+- Reels are a little bigger now.
+
+
+### List what it didn't get correct:
+- Still not big enough and a bunch of wasted space
+
+
+### List any unexpected behavior or errors it introduced:
+
+- None
+
+### Manual Edits (Only if LLM failed after attempts)
+
+- [x] None
+- [ ] Yes
+---

@@ -19,6 +19,10 @@ const TEST_CONFIG = {
     width: 1280,
     height: 800
   },
+  desktopLayoutMinimums: {
+    reelWindowHeight: 400,
+    symbolCellHeight: 110
+  },
   startingBalance: game.GAME_LIMITS.defaultBalance,
   losingPaidSpinBalance: game.GAME_LIMITS.defaultBalance - game.GAME_LIMITS.minBet,
   standardWinPaidSpinBalance: game.GAME_LIMITS.defaultBalance - game.GAME_LIMITS.minBet + 60,
@@ -176,21 +180,30 @@ async function gotoGame(page, lastLoginDateKey = TEST_CONFIG.todayDateKey) {
  *   viewportHeight: number,
  *   scrollWidth: number,
  *   scrollHeight: number,
- *   machineRect: {top: number, right: number, bottom: number, left: number, width: number, height: number},
+  *   machineRect: {top: number, right: number, bottom: number, left: number, width: number, height: number},
+ *   reelWindowRect: {top: number, right: number, bottom: number, left: number, width: number, height: number},
+ *   symbolCellRect: {top: number, right: number, bottom: number, left: number, width: number, height: number},
  *   spinRect: {top: number, right: number, bottom: number, left: number, width: number, height: number}
  * }>}
  */
 async function getDesktopLayoutMetrics(page) {
   return page.evaluate(() => {
     const slotMachine = document.querySelector(".slot-machine");
+    const reelWindow = document.getElementById("reelWindow");
+    const symbolCell = document.querySelector(".symbol-cell");
     const spinButton = document.getElementById("spinButton");
     const root = document.documentElement;
 
-    if (!(slotMachine instanceof HTMLElement) || !(spinButton instanceof HTMLElement)) {
-      throw new Error("Expected slot machine and spin button to exist for viewport layout checks.");
+    if (!(slotMachine instanceof HTMLElement)
+      || !(reelWindow instanceof HTMLElement)
+      || !(symbolCell instanceof HTMLElement)
+      || !(spinButton instanceof HTMLElement)) {
+      throw new Error("Expected desktop layout elements to exist for viewport layout checks.");
     }
 
     const machineRect = slotMachine.getBoundingClientRect();
+    const reelWindowRect = reelWindow.getBoundingClientRect();
+    const symbolCellRect = symbolCell.getBoundingClientRect();
     const spinRect = spinButton.getBoundingClientRect();
 
     return {
@@ -205,6 +218,22 @@ async function getDesktopLayoutMetrics(page) {
         left: machineRect.left,
         width: machineRect.width,
         height: machineRect.height
+      },
+      reelWindowRect: {
+        top: reelWindowRect.top,
+        right: reelWindowRect.right,
+        bottom: reelWindowRect.bottom,
+        left: reelWindowRect.left,
+        width: reelWindowRect.width,
+        height: reelWindowRect.height
+      },
+      symbolCellRect: {
+        top: symbolCellRect.top,
+        right: symbolCellRect.right,
+        bottom: symbolCellRect.bottom,
+        left: symbolCellRect.left,
+        width: symbolCellRect.width,
+        height: symbolCellRect.height
       },
       spinRect: {
         top: spinRect.top,
@@ -1096,6 +1125,16 @@ test.describe("smoke", () => {
     expect(metrics.scrollHeight).toBeLessThanOrEqual(metrics.viewportHeight);
     expect(metrics.machineRect.width).toBeLessThanOrEqual(metrics.viewportWidth);
     expect(metrics.machineRect.height).toBeLessThanOrEqual(metrics.viewportHeight);
+  });
+
+  test("desktop viewport grows the reel grid beyond the prior compact-fit minimum", async ({ page }) => {
+    await page.setViewportSize(TEST_CONFIG.desktopViewport);
+    await gotoGame(page);
+
+    const metrics = await getDesktopLayoutMetrics(page);
+
+    expect(metrics.reelWindowRect.height).toBeGreaterThan(TEST_CONFIG.desktopLayoutMinimums.reelWindowHeight);
+    expect(metrics.symbolCellRect.height).toBeGreaterThan(TEST_CONFIG.desktopLayoutMinimums.symbolCellHeight);
   });
 
   test("pick-a-crate smoke flow opens, reveals, completes, and leaves the game usable", async ({ page }) => {
