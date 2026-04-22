@@ -82,6 +82,7 @@ const state = {
 
 let audioContext = null;
 let popupTimeout = 0;
+let bigWinTimeout = 0;
 
 /**
  * Returns a random integer between zero and maxExclusive minus one.
@@ -358,7 +359,7 @@ function renderSpinStrip(reelElement, reelIndex) {
 
 /**
  * Plays synthesized game effects without external audio files.
- * @param {"spin" | "reelStop" | "win" | "jackpot"} type
+ * @param {"spin" | "reelStop" | "win" | "bigWin" | "jackpot"} type
  */
 function playSound(type) {
   const context = getAudioContext();
@@ -379,6 +380,15 @@ function playSound(type) {
 
     if (type === "reelStop") {
       playTone(context, now, 0.07, 330, 180, "square", 0.035);
+      return;
+    }
+
+    if (type === "bigWin") {
+      [392, 523, 659, 784, 988, 1319].forEach((frequency, index) => {
+        playTone(context, now + index * 0.08, 0.2, frequency, frequency * 1.28, "sawtooth", 0.065);
+      });
+      playTone(context, now, 0.62, 164, 392, "triangle", 0.045);
+      playTone(context, now + 0.16, 0.54, 246, 523, "square", 0.03);
       return;
     }
 
@@ -413,9 +423,9 @@ function setMessage(text, isBigWin = false) {
  * Shows positive win feedback in a temporary popup.
  * @param {string} label
  * @param {number} amount
- * @param {boolean} isJackpot
+ * @param {"default" | "jackpot" | "big-win"} variant
  */
-function showWinPopup(label, amount, isJackpot = false) {
+function showWinPopup(label, amount, variant = "default") {
   const popup = document.getElementById("winPopup");
   const popupLabel = document.getElementById("winPopupLabel");
   const popupAmount = document.getElementById("winPopupAmount");
@@ -423,7 +433,13 @@ function showWinPopup(label, amount, isJackpot = false) {
   window.clearTimeout(popupTimeout);
   popupLabel.textContent = label;
   popupAmount.textContent = String(amount);
-  popup.classList.toggle("jackpot", isJackpot);
+  popup.classList.remove("jackpot", "big-win");
+  if (variant === "jackpot") {
+    popup.classList.add("jackpot");
+  }
+  if (variant === "big-win") {
+    popup.classList.add("big-win");
+  }
   popup.classList.remove("show");
   popup.setAttribute("aria-hidden", "false");
 
@@ -444,8 +460,48 @@ function hideWinPopup() {
   const popup = document.getElementById("winPopup");
 
   window.clearTimeout(popupTimeout);
-  popup.classList.remove("show", "jackpot");
+  popup.classList.remove("show", "jackpot", "big-win");
   popup.setAttribute("aria-hidden", "true");
+}
+
+/**
+ * Clears the active big win celebration visuals.
+ */
+function clearBigWinCelebration() {
+  const celebration = document.getElementById("bigWinCelebration");
+
+  window.clearTimeout(bigWinTimeout);
+  celebration.classList.remove("show");
+  celebration.setAttribute("aria-hidden", "true");
+  celebration.innerHTML = "";
+}
+
+/**
+ * Triggers the specialized big win feedback loop.
+ * @param {number} amount
+ */
+function triggerBigWinFeedback(amount) {
+  const celebration = document.getElementById("bigWinCelebration");
+
+  clearBigWinCelebration();
+  setMessage("Big Win", true);
+  showWinPopup("Big Win", amount, "big-win");
+  playSound("bigWin");
+
+  for (let index = 0; index < 22; index += 1) {
+    const coin = document.createElement("span");
+    coin.className = "coin-burst";
+    coin.style.setProperty("--coin-x", `${4 + randomInteger(92)}vw`);
+    coin.style.setProperty("--coin-drift", `${randomInteger(18) - 9}vw`);
+    coin.style.setProperty("--coin-scale", `${0.8 + Math.random() * 0.8}`);
+    coin.style.setProperty("--coin-duration", `${1.9 + Math.random() * 1.2}s`);
+    coin.style.setProperty("--coin-delay", `${Math.random() * 0.65}s`);
+    celebration.appendChild(coin);
+  }
+
+  celebration.classList.add("show");
+  celebration.setAttribute("aria-hidden", "false");
+  bigWinTimeout = window.setTimeout(clearBigWinCelebration, 2600);
 }
 
 /**
@@ -466,9 +522,7 @@ function settleSpin(board, usedFreeSpin) {
   highlightWins(result);
 
   if (result.totalWin >= state.bet * 20) {
-    setMessage("Jackpot win", true);
-    showWinPopup("Jackpot", result.totalWin, true);
-    playSound("jackpot");
+    triggerBigWinFeedback(result.totalWin);
   } else if (result.totalWin > 0) {
     const label = result.freeSpinsAwarded > 0 ? "Win + Free Spin" : "Win";
     setMessage(result.freeSpinsAwarded > 0 ? "Free spin awarded" : "Win paid");
@@ -494,6 +548,7 @@ function spin() {
   state.isSpinning = true;
   clearWinHighlights();
   hideWinPopup();
+  clearBigWinCelebration();
   setMessage(usedFreeSpin ? "Free spin rolling" : "Reels spinning");
 
   if (usedFreeSpin) {
@@ -553,6 +608,13 @@ function initializeGame() {
   document.getElementById("spinButton").addEventListener("click", spin);
   document.getElementById("decreaseBetButton").addEventListener("click", () => changeBet(-1));
   document.getElementById("increaseBetButton").addEventListener("click", () => changeBet(1));
+  document.addEventListener("keydown", (event) => {
+    if (event.repeat || event.key.toLowerCase() !== "j") {
+      return;
+    }
+
+    triggerBigWinFeedback(state.bet * 20);
+  });
 }
 
 if (typeof document !== "undefined") {

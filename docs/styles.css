@@ -204,6 +204,18 @@ h1 {
   border-width: 4px;
 }
 
+.win-popup.big-win {
+  min-width: 300px;
+  border-width: 4px;
+  background:
+    radial-gradient(circle at 50% 0, rgba(255, 248, 190, 0.75), transparent 46%),
+    linear-gradient(180deg, rgba(149, 79, 22, 0.98), rgba(48, 19, 8, 0.98));
+  box-shadow:
+    0 24px 58px rgba(18, 6, 2, 0.58),
+    0 0 40px rgba(255, 224, 104, 0.9),
+    inset 0 0 28px rgba(255, 230, 118, 0.34);
+}
+
 .win-popup-label {
   color: #fff1b6;
   font-size: 1.05rem;
@@ -220,6 +232,58 @@ h1 {
   text-shadow:
     0 4px 0 #7a3814,
     0 0 22px rgba(255, 225, 104, 0.82);
+}
+
+.big-win-celebration {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  pointer-events: none;
+  overflow: hidden;
+  opacity: 0;
+  transition: opacity 180ms ease;
+}
+
+.big-win-celebration.show {
+  opacity: 1;
+}
+
+.big-win-celebration::before {
+  position: absolute;
+  inset: 0;
+  content: "";
+  background:
+    radial-gradient(circle at 50% 25%, rgba(255, 237, 147, 0.34), transparent 32%),
+    linear-gradient(180deg, rgba(255, 231, 126, 0.18), rgba(255, 255, 255, 0));
+  animation: celebrationFlash 420ms ease-out 3;
+}
+
+.coin-burst {
+  position: absolute;
+  top: -14vh;
+  left: 0;
+  width: 28px;
+  height: 28px;
+  border: 2px solid rgba(255, 246, 184, 0.9);
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 35% 35%, #fff8c6 0 22%, transparent 23%),
+    linear-gradient(145deg, #fff0a3, #d99a26 60%, #8a5612);
+  box-shadow:
+    0 0 14px rgba(255, 223, 112, 0.8),
+    inset 0 0 0 2px rgba(134, 77, 14, 0.35);
+  opacity: 0;
+  transform: translate3d(var(--coin-x), -10vh, 0) scale(var(--coin-scale)) rotate(0deg);
+  animation: coinFall var(--coin-duration) linear forwards;
+  animation-delay: var(--coin-delay);
+}
+
+.coin-burst::before {
+  position: absolute;
+  inset: 6px;
+  content: "";
+  border: 2px solid rgba(173, 103, 18, 0.42);
+  border-radius: 50%;
 }
 
 .payline-guide {
@@ -628,6 +692,36 @@ h1 {
       0 20px 48px rgba(18, 6, 2, 0.5),
       0 0 38px rgba(255, 235, 150, 0.84),
       inset 0 0 28px rgba(255, 225, 104, 0.3);
+  }
+}
+
+@keyframes coinFall {
+  0% {
+    opacity: 0;
+    transform: translate3d(var(--coin-x), -12vh, 0) scale(var(--coin-scale)) rotate(0deg);
+  }
+
+  12% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0.95;
+    transform: translate3d(calc(var(--coin-x) + var(--coin-drift)), 112vh, 0) scale(var(--coin-scale)) rotate(720deg);
+  }
+}
+
+@keyframes celebrationFlash {
+  0% {
+    opacity: 0;
+  }
+
+  30% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0;
   }
 }
 
