@@ -1,0 +1,13 @@
+{
+  "name": "gunslinger-gold-docs",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "lint": "eslint script.js test.spec.js playwright.config.js",
+    "test": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.54.2",
+    "eslint": "^9.16.0"
+  }
+}

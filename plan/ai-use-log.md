@@ -308,8 +308,6 @@ If Yes:
 - Whether the fix introduced new issues or resolved the problem:
 
 ---
-
----
 # Prompt 4 Entry
 
 ## Prompt Used
@@ -347,3 +345,104 @@ If Yes:
 - Whether the fix introduced new issues or resolved the problem:
 
 ---
+
+# Prompt 5 Entry
+
+## Prompt Used
+Create a new file named “test.spec.js” and write all the test cases in. Handle testing with playwright, create files for unit tests, end-to-end testing, and regression testing.
+
+Needs to do unit tests, end-to-end tests with playwright, “Preserve all existing functionality”,Please don’t introduce anything additional beyond these changes.  Add JS doc documentation, linting, no hard coded values (use config objects), modular structure, error handling implemented. Write all tests in test.spec.js and don’t delete any tests. 
+
+You are extending an existing vanilla JS slot machine called "Gunslinger Gold"
+located in `docs/` (`index.html`, `script.js`, `styles.css`). The game is a 5-reel,
+3-row, 5-payline slot with weighted symbols, wilds, scatters, free spins, a big-win
+celebration, and a fast-play toggle. Do NOT rewrite the whole game — keep the
+existing architecture (the `state` object, `evaluateBoard`, `spin`, `settleSpin`,
+`renderBoard`, `playSound`, popup/celebration helpers, and the CommonJS test export
+at the bottom of `script.js`) and integrate new features in the same style
+(plain JS, JSDoc, no frameworks, no external dependencies).
+Add the following four features and tune the math so the game feels rewarding.
+### 1. Win-rate tuning (do this first so every feature benefits)
+- Increase symbol weights for high-paying symbols and lower weights for low
+  letter/number symbols so paid spins happen more often. Target a hit frequency
+  of roughly 40–50% of spins producing at least some payout.
+- Keep RTP reasonable-ish (do not make every spin a huge win) — raise frequency
+  of small/medium wins, not jackpot-sized ones.
+- Do not remove any existing symbols; only adjust `weight` values and, if helpful,
+  add 1–2 extra paylines (e.g. zig-zag variants) to `PAYLINES`.
+### 2. Multipliers
+- Add a new "multiplier" wild variant: when a WILD symbol participates in a
+  winning line, apply a random multiplier of x2, x3, or x5 to that line's payout.
+  If multiple multiplier wilds hit the same line, multiply them together (cap at x25).
+- Show the applied multiplier in the win popup (e.g. "Win x5") and in
+  `statusMessage`.
+- Expose the multiplier via the return value of `evaluateBoard` so it remains unit-testable
+  and update the CommonJS export accordingly.
+### 3. Free spins (scatter-triggered, upgraded)
+- The game already awards 1 free spin for 3+ scatters. Replace this with a proper
+  free-spins round:
+  - 3 scatters → 8 free spins
+  - 4 scatters → 12 free spins
+  - 5 scatters → 20 free spins
+- During free spins, all line wins get an additional global x2 multiplier
+  (stacked with #2). Show a "Free Spins: N  (x2)" indicator in the UI
+  (add a small HTML element near the balance/bet meters and style it in
+  `styles.css` to match the saloon/Wild-West theme).
+- Hitting 3+ scatters during free spins should re-trigger and add more
+  free spins to the remaining count.
+### 4. Bonus round (choice-based)
+- When 3+ "dynamite" symbols land anywhere on the board, trigger a
+  "Pick-A-Crate" bonus round.
+- Build a modal overlay (reuse the pattern of `#settingsOverlay` and
+  `#bigWinCelebration`) with 6 clickable crates. Each crate hides a
+  prize: small coin amount, medium coin amount, large coin amount,
+  multiplier boost, extra free spins, or "Collect & Exit".
+- The player picks crates one at a time. Each pick reveals its prize,
+  adds it to their bonus winnings, and either lets them continue or
+  ends the bonus (if "Collect & Exit" is drawn, or after 3 successful picks).
+- At the end, add the total bonus winnings to `state.balance` and show a
+  summary in the win popup / status message.
+- Weight the crate contents so the bonus round is usually a satisfying
+  payout (average return ≈ 15–40x current bet).
+### 5. Jackpot system
+- Add three jackpot tiers that display above the reels: MINI, MAJOR, GRAND.
+  Each has a running value (start values: 500, 2500, 25000 coins). Every
+  paid spin contributes a tiny fraction of the bet to each pot.
+- Jackpot trigger: landing 5 WILDS on the middle payline awards MINI;
+  5 WILDS on any straight horizontal line awards MAJOR; 5 WILDS across
+  ALL three horizontal lines (i.e. a full-screen 3x5 of wilds, which should
+  be extremely rare) awards GRAND.
+- Alternative rare trigger for MINI / MAJOR: a random jackpot chance
+  (1 in ~400 spins for MINI, 1 in ~2500 for MAJOR) so the player sees
+  occasional jackpots even without lining up wilds.
+- On jackpot win, reuse `playSound("jackpot")`, show a dedicated
+  "JACKPOT!" overlay (bigger, longer, confetti/coin burst, reuse the
+  `bigWinCelebration` pattern), add the pot value to balance, and
+  reset that pot to its starting value.
+- Persist jackpot pot values in `localStorage` (similar to the fast-play
+  preference) so they grow across sessions.
+
+# Result
+## List what it got correct:
+- Multiplier (x2, x3, x5, capped at x25)
+- Free Spins Functionality Added
+- Bonus rounds create Crates
+- Jackpot System implemented
+
+## List what it didn't get correct:
+- tests too messy, will lean up later
+
+
+## List any unexpected behavior or errors it introduced or any functionality it may have removed:
+- 
+
+## Manual Edits (Only if LLM failed after attempts)
+
+- [x] None
+- [ ] Yes
+
+If Yes:
+
+- What was manually changed:
+- Why manual editing was necessary:
+- Whether the fix introduced new issues or resolved the problem:

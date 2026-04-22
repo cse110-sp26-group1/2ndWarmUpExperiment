@@ -9,6 +9,7 @@
   </head>
   <body>
     <div id="bigWinCelebration" class="big-win-celebration" aria-hidden="true"></div>
+    <div id="jackpotCelebration" class="big-win-celebration jackpot-celebration" aria-hidden="true"></div>
     <div id="settingsOverlay" class="settings-overlay" aria-hidden="true">
       <div class="settings-panel" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
         <h2 id="settingsTitle">Settings</h2>
@@ -16,6 +17,13 @@
           <span>Fast Play / Skip Animation</span>
           <input id="fastPlayToggle" type="checkbox">
         </label>
+      </div>
+    </div>
+    <div id="bonusOverlay" class="settings-overlay bonus-overlay" aria-hidden="true">
+      <div class="settings-panel bonus-panel" role="dialog" aria-modal="true" aria-labelledby="bonusTitle">
+        <h2 id="bonusTitle">Pick-A-Crate Bonus</h2>
+        <p id="bonusStatus" class="bonus-status">Choose up to three crates.</p>
+        <div id="bonusCrates" class="bonus-crates" aria-label="Bonus crates"></div>
       </div>
     </div>
     <main class="game-shell" aria-labelledby="game-title">
@@ -28,6 +36,21 @@
         <div class="message-board" aria-live="polite">
           <span id="statusMessage">Place your bet and spin</span>
         </div>
+
+        <section class="jackpot-strip" aria-label="Jackpot values">
+          <div class="jackpot-meter">
+            <span class="meter-label">Mini</span>
+            <strong id="miniJackpotDisplay">500</strong>
+          </div>
+          <div class="jackpot-meter">
+            <span class="meter-label">Major</span>
+            <strong id="majorJackpotDisplay">2500</strong>
+          </div>
+          <div class="jackpot-meter">
+            <span class="meter-label">Grand</span>
+            <strong id="grandJackpotDisplay">25000</strong>
+          </div>
+        </section>
 
         <div id="reelWindow" class="reel-window" role="group" aria-label="Five reels with three visible rows">
           <div class="payline-guide payline-guide-top" aria-hidden="true"></div>
@@ -49,6 +72,11 @@
           <div class="meter">
             <span class="meter-label">Balance</span>
             <strong id="balanceDisplay">1000</strong>
+          </div>
+
+          <div id="freeSpinsMeter" class="meter free-spins-meter" hidden>
+            <span class="meter-label">Free Spins</span>
+            <strong id="freeSpinsDisplay">0</strong>
           </div>
 
           <div class="bet-controls" role="group" aria-label="Bet controls">
