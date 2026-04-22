@@ -2193,9 +2193,12 @@ Test EVERYTHING.
 ## Result
 ### List what it got correct:
 - completed teststing all functionalities
+- did not delete any test cases
+- no regression
+- all failure cases covered
 
 ### List what it didn't get correct:
-- 
+- n/a
 
 
 ### List any unexpected behavior or errors it introduced:
