@@ -994,8 +994,119 @@ Requirements:
 ### List what it didn't get correct:
 - None
 ### List any unexpected behavior or errors it introduced:
+- None
+
+### Manual Edits (Only if LLM failed after attempts)
+- [x] None
+- [ ] Yes
+---
+# Prompt 15 Entry
+## Prompt Used
+## Role
+You are a careful senior engineer working in my existing vanilla JS slot machine project Gunslinger Gold. The project lives in docs/ (index.html, script.js, styles.css) and already has working: reels/animation, spin button, balance+bet, paylines+paytable evaluation, wild/scatter/free spins, multipliers, bonus round, jackpots, popups/celebrations, settings/fast-play toggle, and an existing test suite in test.spec.js.
+## Goal
+Update/Implement a settings page with the following features. 
+Slider for volume, to the right of the slider should be a seamless volume icon that when clicked mutes the volume, and clicking it again brings it back to the previous level
+Fast Play button that skips the animation. (NOTE: This is already implemented. Maintain the same functionality and make sure it is still in the settings page.)
+
+## Non-Negotiable Constraints
+- Preserve all existing functionality.
+- Do not change any existing behavior that currently works.
+- Do not refactor or rewrite unrelated architecture.
+- Do not change payout math, symbol odds, RNG behavior, or game rules unless strictly necessary to fix this payline-span bug.
+- Please do not introduce anything additional beyond these changes.
+- No new dependencies unless absolutely required. Prefer none.
+## Engineering Requirements
+- Add JSDoc documentation for all new or changed functions.
+- Keep linting clean.
+- Do not use hard-coded values. Use config objects or constants where appropriate.
+- Keep the implementation modular, with pure logic separated from DOM where possible.
+- Add error handling for invalid win data, missing DOM nodes, or inconsistent payline state without breaking current gameplay.
+## Testing Requirements
+For every change, add or extend:
+- Unit tests
+- End-to-end tests with Playwright
+- Regression tests
+- Smoke tests with Playwright
+All tests must be written in test.spec.js, and you must not delete any existing tests.
+## Required Test Coverage
+### Unit Tests (Logic Level)
+- Invariant: For every winning line result, matchedPositions.length must equal matchLength and must be contiguous from reel 1 through reel matchLength, with no gaps and no reels beyond matchLength.
+- Invariant: No matched position may exist on a reel index greater than matchLength. Prove no overrun.
+- Invariant: For any payline win, the first non-matching reel must stop the match. Prove break-on-first-miss.
+- Wild substitution: Add cases where wild participates in reels 1 through N and ensure matchLength is correct, and that matchedPositions identifies the exact cells that were counted.
+- Multi-line wins: Construct a board state where two or more paylines win simultaneously with different matchLength values, such as one 3-of-a-kind and one 5-of-a-kind, and assert each line has correct independent matchedPositions and does not inherit width from the other.
+- Edge cases:
+  - Exactly 2 matches should not render a win if current rules require 3 or more. Assert no matchedPositions are produced for 2-of-a-kind.
+  - Invalid win data returned to the renderer should be ignored safely with no throw.
+  - If paylines include diagonal or zigzag patterns, verify row indices for matchedPositions follow the correct per-reel payline path and are not always on the same row.
+- Property-style deterministic loop: Over many randomly generated boards using a seeded RNG, assert:
+  - any win returned never highlights beyond its own matchLength
+  - matchedPositions are unique with no duplicates within a single line
+  - renderer input schema is always valid, or gracefully handled
+### Integration / Render-Level Tests (DOM)
+- Given a mocked win result with matchLength = 3, verify the DOM only applies highlight classes or line segments to reels 1 through 3 and does not touch reels 4 through 5.
+- Verify that clearing highlights between spins fully removes prior highlighted cells, with no stale highlights.
+- Verify multiple paylines can be displayed or animated without overwriting each other’s highlights, or if they are shown sequentially, ensure sequencing is correct and still respects matchLength.
+
+### Playwright End-to-End Tests
+- Smoke: Page loads, no console errors, and spin works.
+- Deterministic near-reel test: Force or stub a known board outcome, via existing test hooks or exports, where a 3-reel win occurs. Spin once and assert:
+  - payout amount matches existing logic and remains unchanged
+  - only the correct 3 reels or cells are highlighted
+  - the payline overlay stops early
+- Deterministic longer win: Force a 5-reel win and assert the highlight spans all 5 reels. This ensures full-length wins still work.
+- Regression: Run a spin that produces a loss and assert no payline is drawn or highlighted.
+- Regression: Multiple winning paylines in one spin render correctly, either simultaneously or in the current UI style, and each line is clipped to its own matchLength.
+- Accessibility and regression: Fast-play or skip, if present, still works and does not break payline drawing, including no full-width flash.
+## Implementation Guidance
+- Reuse the exact existing click, spin, evaluate, and render pipeline.
+- Prefer returning explicit win segments from evaluation. For each winning payline, include:
+  - matchLength
+  - matchedPositions, meaning exact grid coordinates for reels and rows
+- Update rendering so it only highlights or draws over matchedPositions, and stops at matchLength.
+## Deliverables
+- Show exactly which files were changed and provide diffs.
+- Briefly explain why the fix guarantees the payline only spans the actual winning pattern.
+- Provide a quick manual test checklist.
+## Ambiguity Handling
+If anything is ambiguous, infer the safest default that preserves current behavior and keep the changes minimal and localized.
+
+## Result
+### List what it got correct:
+- Successfully implemented volume slider
+- Kept the original "Fast Play/Skip Animation" button in settings 
+- Added JSDoc
+
+### List what it didn't get correct:
+- None
+### List any unexpected behavior or errors it introduced:
 - Both icons look a little odd, it does not quite know where to place things but it looks better
 - Upon merging the icons do not appear in main
+
+### Manual Edits (Only if LLM failed after attempts)
+- [x] None
+- [ ] Yes
+---
+# Prompt 16 Entry
+## Prompt Used
+Convert the current Fast Play/Skip Animation button into four working buttons into settings that consist of the following: Slow, Normal, Fast, Skip.
+- Slow will make the spin animation slower. 
+- Normal is whatever it starts off as currently. 
+- Fast speeds it up by the same amount that it is slowed down in slow. 
+- Skip skips the animation the same way the button works currently. 
+Normal should be the default setting.
+
+## Result
+### List what it got correct:
+- Added the updated four buttons.
+- Slow, Normal, and Fast seem to be working as desribed.
+
+### List what it didn't get correct:
+- None
+### List any unexpected behavior or errors it introduced:
+- The Skip button seems to be not working as well as the previous version. It seems to just skip straight to the result.
+
 
 ### Manual Edits (Only if LLM failed after attempts)
 - [x] None
