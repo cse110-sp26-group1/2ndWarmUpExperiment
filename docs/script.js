@@ -92,7 +92,7 @@ const STORAGE_KEYS = {
 const MULTIPLIER_CONFIG = {
   values: [2, 3, 5],
   cap: 25,
-  wildChance: 0.32
+  wildChance: 0.4
 };
 
 const FREE_SPIN_CONFIG = {
@@ -116,8 +116,8 @@ const JACKPOT_CONFIG = {
     grand: 0.002
   },
   randomOdds: {
-    mini: 400,
-    major: 2500
+    mini: 120,
+    major: 650
   },
   celebrationCoins: 34
 };
@@ -145,19 +145,19 @@ const BONUS_CONFIG = {
 
 /** @type {SymbolDefinition[]} */
 const SYMBOLS = [
-  { id: "badge", label: "Sheriff", className: "symbol-badge", weight: 7, payouts: { 3: 6, 4: 18, 5: 70 } },
-  { id: "boots", label: "Boots", className: "symbol-boots", weight: 8, payouts: { 3: 5, 4: 15, 5: 55 } },
-  { id: "cowboy", label: "Cowboy", className: "symbol-cowboy", weight: 7, payouts: { 3: 7, 4: 22, 5: 90 } },
-  { id: "wanted", label: "Wanted", className: "symbol-wanted", weight: 8, payouts: { 3: 4, 4: 12, 5: 42 } },
-  { id: "cactus", label: "Cactus", className: "symbol-cactus", weight: 8, payouts: { 3: 3, 4: 10, 5: 32 } },
-  { id: SYMBOL_IDS.dynamite, label: "Dynamite", className: "symbol-dynamite", weight: 7, payouts: { 3: 4, 4: 14, 5: 46 } },
-  { id: SYMBOL_IDS.scatter, label: "Scatter", className: "symbol-scatter", weight: 4, payouts: { 3: 2, 4: 8, 5: 35 } },
-  { id: SYMBOL_IDS.wild, label: "Wild", className: "symbol-wild", weight: 5, payouts: { 3: 8, 4: 24, 5: 100 } },
-  { id: "a", label: "A", className: "symbol-letter", weight: 7, payouts: { 3: 2, 4: 6, 5: 18 } },
-  { id: "k", label: "K", className: "symbol-letter", weight: 8, payouts: { 3: 2, 4: 5, 5: 16 } },
-  { id: "q", label: "Q", className: "symbol-letter", weight: 8, payouts: { 3: 1, 4: 4, 5: 14 } },
-  { id: "j", label: "J", className: "symbol-letter", weight: 9, payouts: { 3: 1, 4: 3, 5: 12 } },
-  { id: "10", label: "10", className: "symbol-number", weight: 10, payouts: { 3: 1, 4: 3, 5: 10 } }
+  { id: "badge", label: "Sheriff", className: "symbol-badge", weight: 10, payouts: { 3: 6, 4: 18, 5: 70 } },
+  { id: "boots", label: "Boots", className: "symbol-boots", weight: 10, payouts: { 3: 5, 4: 15, 5: 55 } },
+  { id: "cowboy", label: "Cowboy", className: "symbol-cowboy", weight: 10, payouts: { 3: 7, 4: 22, 5: 90 } },
+  { id: "wanted", label: "Wanted", className: "symbol-wanted", weight: 9, payouts: { 3: 4, 4: 12, 5: 42 } },
+  { id: "cactus", label: "Cactus", className: "symbol-cactus", weight: 9, payouts: { 3: 3, 4: 10, 5: 32 } },
+  { id: SYMBOL_IDS.dynamite, label: "Dynamite", className: "symbol-dynamite", weight: 10, payouts: { 3: 4, 4: 14, 5: 46 } },
+  { id: SYMBOL_IDS.scatter, label: "Scatter", className: "symbol-scatter", weight: 7, payouts: { 3: 2, 4: 8, 5: 35 } },
+  { id: SYMBOL_IDS.wild, label: "Wild", className: "symbol-wild", weight: 9, payouts: { 3: 8, 4: 24, 5: 100 } },
+  { id: "a", label: "A", className: "symbol-letter", weight: 5, payouts: { 3: 2, 4: 6, 5: 18 } },
+  { id: "k", label: "K", className: "symbol-letter", weight: 5, payouts: { 3: 2, 4: 5, 5: 16 } },
+  { id: "q", label: "Q", className: "symbol-letter", weight: 5, payouts: { 3: 1, 4: 4, 5: 14 } },
+  { id: "j", label: "J", className: "symbol-letter", weight: 6, payouts: { 3: 1, 4: 3, 5: 12 } },
+  { id: "10", label: "10", className: "symbol-number", weight: 6, payouts: { 3: 1, 4: 3, 5: 10 } }
 ];
 
 /** @type {{name: string, rows: number[]}[]} */

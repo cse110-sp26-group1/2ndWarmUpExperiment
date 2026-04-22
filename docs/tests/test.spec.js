@@ -1,10 +1,10 @@
 const path = require("path");
 const { test, expect } = require("@playwright/test");
-const game = require("./script.js");
+const game = require("../script.js");
 
 const TEST_CONFIG = {
   bet: 10,
-  fileUrl: `file://${path.join(__dirname, "index.html")}`,
+  fileUrl: `file://${path.join(__dirname, "..", "index.html")}`,
   bonusSpinBoard: [
     ["dynamite", "badge", "dynamite", "k", "a"],
     ["cowboy", "dynamite", "wild", "q", "10"],
