@@ -56,11 +56,11 @@
 ### UX & Feedback
 
 - [x] Highlight winning symbols/paylines <mark>can be improved</mark>
-- [ ] Win messages (“Big Win”, “Nice Hit”, etc.) as popups
+- [x] Win messages (“Big Win”, “Nice Hit”, etc.) as popups (J key tester)
 - [ ] Spin animation polish
 - [x] Sound effects (spin, win, jackpot) <mark>can be improved</mark>
 - [x] Button hover/press effects
-- [ ] Fast spin / skip animation option
+- [x] Fast spin / skip animation option
 
 ---
 
@@ -296,6 +296,45 @@ Add a developer 'test feature' to verify these visuals: create a keyboard shortc
 
 
 ## List any unexpected behavior or errors it introduced or any functionality it may have removed:
+
+## Manual Edits (Only if LLM failed after attempts)
+
+- [x] None
+- [ ] Yes
+
+If Yes:
+
+- What was manually changed:
+- Why manual editing was necessary:
+- Whether the fix introduced new issues or resolved the problem:
+
+---
+
+---
+# Prompt 4 Entry
+
+## Prompt Used
+"preserve all existing functionality"
+"implement a 'Skip Animation' feature with both a persistent toggle and a manual override button:
+
+Settings Toggle: Functionalize the existing settings button to open a simple overlay or panel containing a 'Fast Play / Skip Animation' toggle. When this toggle is ON, clicking 'Spin' should immediately display the final reel results and trigger the win evaluation without any spinning delay.
+
+Manual Skip Button: Add a 'Skip' button (or transform the 'Spin' button into a 'Skip' button during an active spin) that allows the user to manually interrupt the current reel animation. Clicking this should immediately stop all reels and proceed to the outcome.
+
+Logic: Ensure that skipping only affects the animation speed; the user must still manually click 'Spin' for each new round. If the settings toggle is OFF, the game should behave normally unless the manual 'Skip' is clicked during a spin."
+"please don't introduce anything additional beyond these changes"
+
+# Result
+## List what it got correct:
+- Skip animation button works manually
+  - Toggle skip animation in settings also works
+
+## List what it didn't get correct:
+- Wasn't specified but skip button is only on screen, no keyboard shortcut
+
+
+## List any unexpected behavior or errors it introduced or any functionality it may have removed:
+- May have been there before but white spot on wild card
 
 ## Manual Edits (Only if LLM failed after attempts)
 
