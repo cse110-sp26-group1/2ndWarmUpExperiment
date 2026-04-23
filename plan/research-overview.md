@@ -157,12 +157,12 @@ Slot machines use multiple techniques to keep users playing:
 
 - Albert : Payline logic, 2 user stories, 1 persona
 - Ben : 2 user stories, 1 persona
-- Aliyn : 2 user stories, 1 persona
+- Ailyn : 2 user stories, 1 persona
 - Amberly : 2 user stories, 1 persona
 - Jonathan : 2 user stories, 1 persona
 - Jerry : feature types of users (domain)
 - Noah : feature type of user (domain) and general slot reserach
 - Anchita : miro board, slot ui reference, wireframe (domain)
 - Michael : miro board, slot ui reference, wireframe (domain)
-- Amornmio : miro board, general slot research (domain)
+- Amormio : miro board, general slot research (domain)
 - James : miro board, general slot research/probability (domain)
