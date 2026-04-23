@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gunslinger Gold</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="script.js" defer></script>
+  </head>
+  <body>
+    <div id="bigWinCelebration" class="big-win-celebration" aria-hidden="true"></div>
+    <div id="jackpotCelebration" class="big-win-celebration jackpot-celebration" aria-hidden="true"></div>
+    <div id="settingsOverlay" class="settings-overlay" aria-hidden="true">
+      <div class="settings-panel" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+        <h2 id="settingsTitle">Settings</h2>
+        <div class="settings-control settings-volume">
+          <span id="volumeLabel">Volume</span>
+          <div class="settings-volume-control">
+            <input
+              id="volumeSlider"
+              type="range"
+              min="0"
+              max="100"
+              step="5"
+              value="60"
+              aria-labelledby="volumeLabel"
+            >
+            <button
+              id="volumeMuteButton"
+              class="settings-icon-button"
+              type="button"
+              aria-label="Mute volume"
+              aria-pressed="false"
+              data-volume-state="high"
+            >
+              <svg class="volume-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                <path class="volume-speaker" d="M4 9h4l5-4v14l-5-4H4z"></path>
+                <path class="volume-wave volume-wave-inner" d="M16 9.5a4 4 0 0 1 0 5"></path>
+                <path class="volume-wave volume-wave-outer" d="M18.5 7a7.5 7.5 0 0 1 0 10"></path>
+                <path class="volume-slash" d="M6 6l12 12"></path>
+              </svg>
+            </button>
+          </div>
+        </div>
+        <div class="settings-control settings-speed">
+          <span id="spinSpeedLabel">Spin Speed</span>
+          <div class="settings-speed-options" role="group" aria-labelledby="spinSpeedLabel">
+            <button id="spinSpeedSlow" class="settings-speed-button" type="button" data-spin-speed="slow" aria-pressed="false">Slow</button>
+            <button id="spinSpeedNormal" class="settings-speed-button" type="button" data-spin-speed="normal" aria-pressed="true">Normal</button>
+            <button id="spinSpeedFast" class="settings-speed-button" type="button" data-spin-speed="fast" aria-pressed="false">Fast</button>
+            <button id="spinSpeedSkip" class="settings-speed-button" type="button" data-spin-speed="skip" aria-pressed="false">Skip</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div id="bonusOverlay" class="settings-overlay bonus-overlay" aria-hidden="true">
+      <div id="bonusPanel" class="settings-panel bonus-panel" role="dialog" aria-modal="true" aria-labelledby="bonusTitle" aria-describedby="bonusStatus">
+        <h2 id="bonusTitle" class="bonus-title">
+          <span class="bonus-title-kicker">Bonus Round</span>
+          <span>Pick-A-Crate</span>
+        </h2>
+        <div id="bonusStatus" class="bonus-status bonus-status-grid" aria-live="polite">Choose up to three crates.</div>
+        <div id="bonusCrates" class="bonus-crates" role="group" aria-label="Bonus crates" tabindex="0"></div>
+      </div>
+    </div>
+    <main class="game-shell" aria-labelledby="game-title">
+      <section class="slot-machine" aria-label="Gunslinger Gold slot machine">
+        <header class="machine-header">
+          <p class="saloon-sign">Wild West Casino</p>
+          <h1 id="game-title">Gunslinger Gold</h1>
+        </header>
+
+        <div class="message-board" aria-live="polite">
+          <span id="statusMessage">Place your bet and spin</span>
+        </div>
+
+        <div id="rewardFeedback" class="reward-feedback" aria-live="polite" aria-atomic="true" aria-hidden="true" hidden>
+          <span id="rewardFeedbackLabel" class="reward-feedback-label">Reward Added</span>
+          <strong id="rewardFeedbackAmount" class="reward-feedback-amount">+0</strong>
+          <span id="rewardFeedbackText" class="reward-feedback-text">Added to your account</span>
+        </div>
+
+        <section class="jackpot-strip" aria-label="Jackpot values">
+          <div class="jackpot-meter">
+            <span class="meter-label">Mini</span>
+            <strong id="miniJackpotDisplay">500</strong>
+          </div>
+          <div class="jackpot-meter">
+            <span class="meter-label">Major</span>
+            <strong id="majorJackpotDisplay">2500</strong>
+          </div>
+          <div class="jackpot-meter">
+            <span class="meter-label">Grand</span>
+            <strong id="grandJackpotDisplay">25000</strong>
+          </div>
+        </section>
+
+        <div id="reelWindow" class="reel-window" role="group" aria-label="Five reels with three visible rows">
+          <div class="payline-guide payline-guide-top" aria-hidden="true"></div>
+          <div class="payline-guide payline-guide-middle" aria-hidden="true"></div>
+          <div class="payline-guide payline-guide-bottom" aria-hidden="true"></div>
+          <div class="reel" data-reel="0"></div>
+          <div class="reel" data-reel="1"></div>
+          <div class="reel" data-reel="2"></div>
+          <div class="reel" data-reel="3"></div>
+          <div class="reel" data-reel="4"></div>
+        </div>
+
+        <div id="winPopup" class="win-popup" aria-live="polite" aria-hidden="true">
+          <span id="winPopupLabel" class="win-popup-label">Win</span>
+          <strong id="winPopupAmount">0</strong>
+        </div>
+
+        <footer class="control-panel" aria-label="Game controls">
+          <div class="meter">
+            <span class="meter-label">Balance</span>
+            <strong id="balanceDisplay">1000</strong>
+          </div>
+
+          <div id="freeSpinsMeter" class="meter free-spins-meter" hidden>
+            <span class="meter-label">Free Spins</span>
+            <strong id="freeSpinsDisplay">0</strong>
+          </div>
+
+          <div class="bet-controls" role="group" aria-label="Bet controls">
+            <button id="decreaseBetButton" class="round-button" type="button" aria-label="Decrease bet">-</button>
+            <div class="meter bet-meter">
+              <span class="meter-label">Bet</span>
+              <strong id="betDisplay">10</strong>
+            </div>
+            <button id="increaseBetButton" class="round-button" type="button" aria-label="Increase bet">+</button>
+            <button id="settingsButton" class="round-button settings-button" type="button" aria-label="Settings" tabindex="0">
+              <span aria-hidden="true">&#9881;</span>
+            </button>
+          </div>
+
+          <button id="spinButton" class="spin-button" type="button">Spin</button>
+        </footer>
+      </section>
+    </main>
+  </body>
+</html>
