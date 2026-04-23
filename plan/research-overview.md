@@ -148,18 +148,21 @@ Slot machines use multiple techniques to keep users playing:
 - 2010s+: Mobile gaming, freemium models, and gamification (achievements, leaderboards)
 
 ---
+
 ## Payline Logic
-[Link to logic](https://www.cachecreek.com/slot-machine-paylines)
----
+
+## [Link to logic](https://www.cachecreek.com/slot-machine-paylines)
+
 ## Credits
+
 - Albert : Payline logic, 2 user stories, 1 persona
 - Ben : 2 user stories, 1 persona
 - Aliyn : 2 user stories, 1 persona
 - Amberly : 2 user stories, 1 persona
 - Jonathan : 2 user stories, 1 persona
 - Jerry : feature types of users (domain)
-- Noah : feature type of user (domain)
-- Anchita : miro board, slot ui reference, wireframe
-- Michael : miro board, slot ui reference, wireframe
-- Amornmio : general slot research
-- James : general slot research/probability
+- Noah : feature type of user (domain) and general slot reserach
+- Anchita : miro board, slot ui reference, wireframe (domain)
+- Michael : miro board, slot ui reference, wireframe (domain)
+- Amornmio : miro board, general slot research (domain)
+- James : miro board, general slot research/probability (domain)
