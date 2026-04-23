@@ -1,1 +1,36 @@
+# macOS
 .DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Editors / IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Node / npm
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.npm/
+
+# Playwright
+/docs/test-results/
+/docs/.playwright-run/
+/docs/playwright-report/
+/docs/blob-report/
+/docs/playwright/.cache/
+
+# Logs / env
+*.log
+.env
+.env.local
