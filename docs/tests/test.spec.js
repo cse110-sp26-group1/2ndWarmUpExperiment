@@ -27,8 +27,8 @@ const TEST_CONFIG = {
   },
   startingBalance: game.GAME_LIMITS.defaultBalance,
   losingPaidSpinBalance: game.GAME_LIMITS.defaultBalance - game.GAME_LIMITS.minBet,
-  standardWinPaidSpinBalance: game.GAME_LIMITS.defaultBalance - game.GAME_LIMITS.minBet + 60,
-  fiveReelPaidSpinBalance: game.GAME_LIMITS.defaultBalance - game.GAME_LIMITS.minBet + 700,
+  standardWinPaidSpinBalance: game.GAME_LIMITS.defaultBalance - game.GAME_LIMITS.minBet + (game.SYMBOLS.find((symbol) => symbol.id === "badge").payouts[3] * game.GAME_LIMITS.minBet),
+  fiveReelPaidSpinBalance: game.GAME_LIMITS.defaultBalance - game.GAME_LIMITS.minBet + (game.SYMBOLS.find((symbol) => symbol.id === "badge").payouts[5] * game.GAME_LIMITS.minBet),
   manualMiniJackpotAmount: 777,
   fileUrl: `file://${path.join(__dirname, "..", "index.html")}`,
   todayDateKey: createRelativeDateKey(0),
@@ -362,6 +362,59 @@ function createSeededBoard(random) {
 }
 
 /**
+ * Samples direct paid-spin outcomes for one probability profile.
+ * This intentionally excludes chained free-spin value so it can compare raw hit rates quickly.
+ * @param {string} profileName
+ * @param {number} spinCount
+ * @param {number} seed
+ * @returns {{hitFrequency: number, jackpotFrequency: number, scatterFrequency: number}}
+ */
+function samplePaidSpinProfile(profileName, spinCount, seed) {
+  const profile = game.getProbabilityProfile(profileName);
+  const symbols = game.createSymbolsForProfile(profileName);
+  const symbolMap = Object.fromEntries(symbols.map((symbol) => [symbol.id, symbol]));
+  const weightedSymbolIds = game.buildWeightedSymbolIds(symbols);
+  const random = game.createSeededRandom(seed);
+  let hits = 0;
+  let jackpots = 0;
+  let scatters = 0;
+
+  for (let index = 0; index < spinCount; index += 1) {
+    const board = game.createBoard({ weightedSymbolIds, random });
+    const boardFeatures = game.createBoardFeatureGrid(board, {
+      multiplierConfig: profile.multiplier,
+      random
+    });
+    const result = game.evaluateBoard(board, TEST_CONFIG.bet, {
+      boardFeatures,
+      multiplierConfig: profile.multiplier,
+      freeSpinConfig: profile.freeSpins,
+      bonusConfig: game.BONUS_CONFIG,
+      symbolMap
+    });
+    const jackpotTier = game.determineJackpotTier(board) || game.rollRandomJackpotTier(profile.jackpot, random);
+
+    if (result.totalWin > 0 || result.freeSpinsAwarded > 0 || result.bonusTriggered || jackpotTier) {
+      hits += 1;
+    }
+
+    if (result.freeSpinsAwarded > 0) {
+      scatters += 1;
+    }
+
+    if (jackpotTier) {
+      jackpots += 1;
+    }
+  }
+
+  return {
+    hitFrequency: hits / spinCount,
+    jackpotFrequency: jackpots / spinCount,
+    scatterFrequency: scatters / spinCount
+  };
+}
+
+/**
  * Configures the browser game to produce a deterministic near-miss candidate board.
  * @param {import("@playwright/test").Page} page
  * @param {{fastPlay?: boolean, holdMs?: number, slideMs?: number}} options
@@ -406,9 +459,68 @@ test.describe("unit", () => {
   test("clamps bets and keeps free-spin awards configurable", async () => {
     expect(game.clampBet(0)).toBe(game.GAME_LIMITS.minBet);
     expect(game.clampBet(999)).toBe(game.GAME_LIMITS.maxBet);
-    expect(game.getFreeSpinAward(3)).toBe(8);
-    expect(game.getFreeSpinAward(4)).toBe(12);
-    expect(game.getFreeSpinAward(5)).toBe(20);
+    expect(game.getFreeSpinAward(3)).toBe(5);
+    expect(game.getFreeSpinAward(4)).toBe(8);
+    expect(game.getFreeSpinAward(5)).toBe(12);
+  });
+
+  test("builds a non-empty weighted symbol pool with the intended rarity order", async () => {
+    const weights = Object.fromEntries(game.SYMBOLS.map((symbol) => [symbol.id, symbol.weight]));
+    const weightedPool = game.buildWeightedSymbolIds(game.SYMBOLS);
+
+    expect(weightedPool.length).toBeGreaterThan(0);
+    expect(weights.a).toBeGreaterThan(weights.cactus);
+    expect(weights.k).toBeGreaterThan(weights.wanted);
+    expect(weights.q).toBeGreaterThan(weights.badge);
+    expect(weights.badge).toBeGreaterThan(weights.wild);
+    expect(weights.boots).toBeGreaterThan(weights.scatter);
+    expect(weights.cowboy).toBeLessThan(weights.cactus);
+    expect(weights.wild).toBe(1);
+    expect(weights.scatter).toBe(1);
+  });
+
+  test("rejects invalid weighted pools and malformed probability profiles", async () => {
+    expect(() => game.buildWeightedSymbolIds([])).toThrow(/empty symbol list/i);
+    expect(() => game.buildWeightedSymbolIds([
+      { id: "broken", weight: 0, payouts: { 3: 1, 4: 1, 5: 1 } }
+    ])).toThrow(/invalid weight/i);
+    expect(() => game.getProbabilityProfile("__missing__")).toThrow(/unknown probability profile/i);
+  });
+
+  test("keeps simulation math configurable and player-friendly relative to baseline", async () => {
+    const baseline = game.simulateSpins(8000, { profileName: "realisticBaseline", seed: 20260422 });
+    const final = game.simulateSpins(8000, { profileName: "playerFriendly", seed: 20260422 });
+
+    expect(final.rtp).toBeGreaterThan(baseline.rtp);
+    expect(final.rtp / baseline.rtp).toBeGreaterThan(1.08);
+    expect(final.rtp / baseline.rtp).toBeLessThan(1.2);
+    expect(final.bonusFrequency).toBeGreaterThan(0);
+    expect(final.distribution.small + final.distribution.medium).toBeGreaterThan(final.distribution.large);
+  });
+
+  test("reduces raw paid-spin hit frequency versus the legacy profile", async () => {
+    const legacy = samplePaidSpinProfile("legacy", 4000, 101);
+    const current = samplePaidSpinProfile("playerFriendly", 4000, 101);
+
+    expect(current.hitFrequency).toBeLessThan(legacy.hitFrequency);
+    expect(current.scatterFrequency).toBeLessThan(legacy.scatterFrequency);
+    expect(current.jackpotFrequency).toBeLessThan(legacy.jackpotFrequency);
+  });
+
+  test("keeps wild multipliers and jackpots in a restrained range", async () => {
+    const current = game.simulateSpins(8000, { profileName: "playerFriendly", seed: 77 });
+
+    expect(game.MULTIPLIER_CONFIG.wildChance).toBeLessThan(0.2);
+    expect(current.jackpotFrequency).toBeLessThan(0.002);
+    expect(current.averageFreeSpinsPerPaidSpin).toBeLessThan(0.2);
+  });
+
+  test("preserves board integrity and rejects invalid simulation ranges", async () => {
+    const board = game.createBoard();
+
+    expect(board).toHaveLength(game.GAME_LIMITS.rowCount);
+    expect(board.every((row) => row.length === game.GAME_LIMITS.reelCount)).toBe(true);
+    expect(() => game.simulateSpins(0)).toThrow(/positive integer/i);
   });
 
   test("sanitizes audio settings and volume changes across corrupted input", async () => {
@@ -541,7 +653,7 @@ test.describe("unit", () => {
       isFreeSpinRound: true
     });
 
-    expect(result.totalWin).toBe(45280);
+    expect(result.totalWin).toBe(16718);
     expect(result.appliedMultiplier).toBe(50);
     expect(result.lineWins.find((lineWin) => lineWin.lineName === "middle").multiplier).toBe(50);
   });
@@ -568,7 +680,7 @@ test.describe("unit", () => {
   test("preserves base line payout math for normal wins", async () => {
     const result = game.evaluateBoard(TEST_CONFIG.standardWinBoard, TEST_CONFIG.bet);
 
-    expect(result.totalWin).toBe(60);
+    expect(result.totalWin).toBe(25.5);
     expect(result.freeSpinsAwarded).toBe(0);
     expect(result.bonusTriggered).toBe(false);
     expect(result.lineWins).toEqual([
@@ -576,8 +688,8 @@ test.describe("unit", () => {
         lineName: "top",
         symbolId: "badge",
         count: 3,
-        baseWin: 60,
-        payout: 60,
+        baseWin: 25.5,
+        payout: 25.5,
         multiplier: 1
       })
     ]);
@@ -1637,7 +1749,7 @@ test.describe("end-to-end", () => {
     await page.click("#spinButton");
 
     await expect(page.locator("#spinButton")).toHaveText("Spin");
-    await expect(page.locator("#winPopupAmount")).toHaveText("60");
+    await expect(page.locator("#winPopupAmount")).toHaveText(String(game.evaluateBoard(TEST_CONFIG.standardWinBoard, TEST_CONFIG.bet).totalWin));
     await expect(page.locator("#balanceDisplay")).toHaveText(String(TEST_CONFIG.standardWinPaidSpinBalance));
     await expect(page.locator(".symbol-cell.win")).toHaveCount(3);
     await expect(page.locator('[data-reel="3"][data-row="0"]')).not.toHaveClass(/win/);
@@ -1662,7 +1774,7 @@ test.describe("end-to-end", () => {
     await page.click("#spinButton");
 
     await expect(page.locator("#spinButton")).toHaveText("Spin");
-    await expect(page.locator("#winPopupAmount")).toHaveText("700");
+    await expect(page.locator("#winPopupAmount")).toHaveText(String(game.evaluateBoard(TEST_CONFIG.fiveReelWinBoard, TEST_CONFIG.bet).totalWin));
     await expect(page.locator("#balanceDisplay")).toHaveText(String(TEST_CONFIG.fiveReelPaidSpinBalance));
     await expect(page.locator(".symbol-cell.win")).toHaveCount(5);
     await expect(page.locator(".payline-segment")).toHaveCount(4);
@@ -1750,7 +1862,7 @@ test.describe("end-to-end", () => {
     await settleBoard(page, TEST_CONFIG.freeSpinBoard, true);
 
     await expect(page.locator("#freeSpinsMeter")).toBeVisible();
-    await expect(page.locator("#freeSpinsDisplay")).toContainText("8");
+    await expect(page.locator("#freeSpinsDisplay")).toContainText(String(game.getFreeSpinAward(3)));
     await expect(page.locator("#rewardFeedback")).toHaveClass(/show/);
     await expect(page.locator("#rewardFeedbackLabel")).toHaveText("Free Spins Added");
     await expect(page.locator("#rewardFeedbackAmount")).toHaveText(`+${game.getFreeSpinAward(3)} free spins`);
@@ -1797,6 +1909,28 @@ test.describe("end-to-end", () => {
     await expect(page.locator("#jackpotCelebration")).toHaveClass(/show/);
     await expect(page.locator("#winPopupLabel")).toHaveText("MINI Jackpot");
     await expect(page.locator("#miniJackpotDisplay")).toHaveText(String(game.JACKPOT_CONFIG.startingValues.mini));
+  });
+
+  test("skip-mode live play shows a loss-heavy cadence after the rebalance", async ({ page }) => {
+    const outcomeCounts = await page.evaluate(async (spinCount) => {
+      const counts = { losses: 0, wins: 0 };
+
+      for (let index = 0; index < spinCount; index += 1) {
+        document.getElementById("spinButton").click();
+        await new Promise((resolve) => window.setTimeout(resolve, 0));
+
+        if (document.getElementById("statusMessage").textContent === "No win this round") {
+          counts.losses += 1;
+        } else {
+          counts.wins += 1;
+        }
+      }
+
+      return counts;
+    }, 40);
+
+    expect(outcomeCounts.losses).toBeGreaterThan(outcomeCounts.wins);
+    expect(outcomeCounts.losses).toBeGreaterThanOrEqual(20);
   });
 });
 
